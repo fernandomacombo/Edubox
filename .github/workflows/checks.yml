@@ -1,0 +1,31 @@
+name: EduBox checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/test_importar_instalacao.py
+      - run: pip install -r backend/requirements.txt
+      - run: python manage.py makemigrations learning --noinput
+        working-directory: backend
+      - run: python manage.py check && python manage.py test learning
+        working-directory: backend
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test && npm run build && npm audit --audit-level=moderate
+        working-directory: frontend

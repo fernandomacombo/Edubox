@@ -1,0 +1,23 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+media/
+staticfiles/
+node_modules/
+dist/
+.env
+.DS_Store
+
+# EduBox v0.3: ficheiros privados de alunos
+private_assignments/
+backups/
+
+# Histórico gerado localmente para compatibilidade com as instalações ZIP
+backend/learning/migrations/[0-9]*.py
+*.tsbuildinfo
+runtime/
+.edubox_imported
+.env.*
+!.env.example
