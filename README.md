@@ -2,7 +2,7 @@
 
 Aprender na rede local da escola, mesmo sem Internet.
 
-**v0.3.2 — interface simplificada.** Biblioteca, exercícios e um espaço pessoal com turmas, fichas, respostas e notas. Django + React/TypeScript + SQLite.
+**v0.3.3 — mais tranquilidade para o aluno.** Biblioteca, exercícios e um espaço pessoal com turmas, fichas, respostas e notas. Django + React/TypeScript + SQLite.
 
 ## Já tens a instalação dos ZIPs no Windows?
 
@@ -56,7 +56,9 @@ Se aparecer `ENOSPC`, falta espaço no disco; não repitas instalações nem apa
 - **Biblioteca:** pesquisa e filtros por classe, leitura de texto e abertura de documentos.
 - **Exercícios:** perguntas com correcção local.
 - **Meu espaço / professor:** fichas e turmas separadas; formulários abrem só quando necessários.
-- **Meu espaço / aluno:** filtros Todas, Por fazer e Entregues, com notas e comentários.
+- **Meu espaço / aluno:** filtros Todas, Por fazer, A aguardar avaliação e Avaliadas, com notas e comentários.
+- **Responder com calma:** rascunho automático no separador, revisão antes da entrega e confirmação explícita. Uma falha de envio mantém o texto para tentar novamente.
+- **Ajuda e privacidade:** explicação do percurso e de quem pode consultar respostas e notas. Usa «Sair» num computador partilhado: os rascunhos locais são apagados. Não há sincronização de rascunhos entre dispositivos; fechar ou perder o separador pode perder o texto.
 - Layout adaptável ao telemóvel, botões com texto, foco de teclado e opção para mostrar a palavra-passe.
 
 ## Desenvolvimento e testes

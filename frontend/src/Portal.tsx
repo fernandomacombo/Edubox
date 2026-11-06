@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import StudentReply, { clearStudentDrafts } from './StudentReply'
 import { BookOpen, CheckCircle2, ExternalLink, GraduationCap, LockKeyhole, LogOut, Plus, Send, Users, ArrowLeft, FileText, Clock3 } from 'lucide-react'
 
 type Person = { username: string; name: string }
@@ -9,10 +10,16 @@ type Material = { id: number; title: string; grade: number; subject: string }
 type Assignment = { id: number; title: string; created_at: string; attachment_url: string | null; instructions: string; class_id: number; class_name: string; grade: number; resource: { title: string; file_url: string | null; body: string; external_url: string } | null; my_answer: { answer: string; score: number | null; feedback: string } | null }
 type Answer = { id: number; student: Person; answer: string; score: number | null; feedback: string }
 
-async function api<T>(path: string, body?: object | FormData): Promise<T> {
+async function api<T>(path: string, body?: object | FormData, expectedUsername?: string): Promise<T> {
   if (body !== undefined) {
     const verify = await fetch('/api/portal/session/', { credentials: 'same-origin' })
     if (!verify.ok) throw new Error('Não foi possível confirmar a sessão.')
+    if (expectedUsername) {
+      const session = await verify.json() as {user: Profile | null}
+      if (session.user?.username !== expectedUsername || session.user.role !== 'student') {
+        throw new Error('A sessão mudou. Volta a entrar na tua conta antes de entregar.')
+      }
+    }
   }
   const token = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)?.[1] || ''
   const multipart = body instanceof FormData
@@ -30,7 +37,7 @@ export default function Portal() {
   const [workspace, setWorkspace] = useState<'assignments' | 'classes'>('assignments')
   const [composing, setComposing] = useState(false)
   const [showClassForm, setShowClassForm] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'pending' | 'done'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'done' | 'graded'>('all')
   const [showPassword, setShowPassword] = useState(false)
   const [user, setUser] = useState<Profile | null>(null)
   const [ready, setReady] = useState(false)
@@ -53,7 +60,6 @@ export default function Portal() {
   const [documentMode, setDocumentMode] = useState<'none' | 'existing' | 'upload'>('none')
   const [assignPdf, setAssignPdf] = useState<File | null>(null)
   const [fileReset, setFileReset] = useState(0)
-  const [studentAnswers, setStudentAnswers] = useState<Record<number, string>>({})
   const [opened, setOpened] = useState<number | null>(null)
   const [responses, setResponses] = useState<Answer[]>([])
   const [scores, setScores] = useState<Record<number, string>>({})
@@ -97,7 +103,7 @@ export default function Portal() {
       await api('/api/portal/logout/', {})
       responseRequest.current += 1
       setUser(null); setClasses([]); setAssignments([]); setMaterials([])
-      setStudentAnswers({}); setResponses([]); setScores({}); setFeedback({}); setOpened(null)
+      clearStudentDrafts(); setResponses([]); setScores({}); setFeedback({}); setOpened(null)
       setAssignClass(''); setAssignTitle(''); setAssignInstructions(''); setAssignMaterial('')
       setDocumentMode('none'); setAssignPdf(null); setFileReset(old => old + 1)
       setEnrollClass(0); setEnrollUsername(''); setClassName('')
@@ -141,12 +147,17 @@ export default function Portal() {
       setAssignTitle(''); setAssignInstructions(''); setDocumentMode('none'); setAssignMaterial(''); setAssignPdf(null); setFileReset(old => old + 1); setComposing(false); setWorkspace('assignments'); await refresh()
     }, 'Ficha atribuída à turma.')
   }
-  async function sendAnswer(id: number) {
-    await act(async () => {
-      await api(`/api/portal/assignments/${id}/submit/`, { answer: studentAnswers[id] || '' })
-      await refresh()
-    }, 'Resposta entregue ao professor.')
+  async function sendAnswer(id: number, answer: string) {
+    if (actionLock.current) throw new Error('Aguarda que a operação anterior termine.')
+    actionLock.current = true; setBusy(true)
+    try {
+      await api(`/api/portal/assignments/${id}/submit/`, { answer }, user?.username)
+      // A successful POST is authoritative, even if subsequent reads are unavailable.
+      setAssignments(old => old.map(a => a.id === id ? {...a, my_answer: {answer, score: null, feedback: ''}} : a))
+      setSuccess('Resposta entregue ao professor. Podes consultar a avaliação aqui quando estiver disponível.')
+    } finally { actionLock.current = false; setBusy(false) }
   }
+
   async function toggleResponses(id: number) {
     const requestId = ++responseRequest.current
     if (opened === id) { setOpened(null); return }
@@ -170,7 +181,7 @@ export default function Portal() {
   const currentClass = classes.find(c => String(c.id) === assignClass)
   const availableMaterials = materials.filter(m => m.grade === currentClass?.grade)
 
-  const visibleAssignments = assignments.filter(a => filter === 'all' || (filter === 'pending' ? !a.my_answer : Boolean(a.my_answer)))
+  const visibleAssignments = assignments.filter(a => filter === 'all' || (filter === 'pending' ? !a.my_answer : filter === 'done' ? a.my_answer?.score === null : a.my_answer != null && a.my_answer.score !== null))
 
   return <section className="portal container">
     <div className="portal-heading"><span className="section-kicker">O TEU ESPAÇO DE APRENDIZAGEM</span><h1>{user ? `Olá, ${user.name}` : 'Bom ter-te aqui.'}</h1><p>{!user ? 'Entra para acompanhar as tuas turmas, fichas e resultados.' : user.role === 'teacher' ? 'Organiza as turmas e acompanha cada aprendizagem.' : user.role === 'student' ? 'As tuas fichas, respostas e notas, num só lugar.' : 'Tudo pronto para cuidar da tua escola.'}</p></div>
@@ -187,6 +198,12 @@ export default function Portal() {
         <small>Ainda não tens conta? Pede ajuda ao responsável da escola.</small>
       </form> : <>
         <div className="portal-user"><div className="identity"><span className="avatar" aria-hidden="true">{user.name.slice(0,1).toUpperCase()}</span><div><strong>{user.name}</strong><small>{user.role === 'teacher' ? 'Professor' : user.role === 'student' ? 'Aluno' : 'Administrador'} · @{user.username}</small></div></div><button onClick={() => void signOut()} disabled={busy} className="portal-light"><LogOut size={16}/> Sair</button></div>
+        {user.role === 'student' && <details className="portal-panel student-help"><summary>Como funciona o meu espaço?</summary>
+          <ol><li><b>Por fazer:</b> lê a ficha e escreve ao teu ritmo. Podes rever a resposta antes de entregar.</li><li><b>A aguardar avaliação:</b> a resposta já chegou ao professor. Não precisas de a enviar outra vez.</li><li><b>Avaliadas:</b> consulta a nota e o comentário para perceberes o que podes melhorar.</li></ol>
+          <p>As tuas respostas e notas podem ser consultadas por ti, pelo professor responsável e pelo administrador da escola. Os colegas não têm acesso a elas.</p>
+          <p>Tens dúvidas sobre a ficha ou precisas de ajuda? Fala com o teu professor. Se esta área estiver vazia, pede-lhe que confirme a tua inscrição na turma.</p>
+          <p>Não precisas de Internet para responder, mas mantém a ligação ao Wi-Fi da EduBox para entregar.</p>
+        </details>}
         {user.role === 'admin' && <div className="portal-panel"><h2>Administração escolar</h2><p>Cria utilizadores e atribui-lhes os grupos <b>Professor</b> ou <b>Aluno</b> na administração. O superutilizador continua reservado à gestão.</p><a className="btn btn-primary" href="/admin/" target="_blank" rel="noreferrer">Abrir administração <ExternalLink size={15}/></a></div>}
         {(user.role === 'teacher' || user.role === 'student') && <div className="workspace-bar">
           <div className="workspace-tabs" aria-label="Área de trabalho">
@@ -239,7 +256,7 @@ export default function Portal() {
           </div>}
         </>}
         {(user.role === 'teacher' || user.role === 'student') && workspace === 'assignments' && !composing && <div className="portal-panel assignment-list"><h2><BookOpen size={21}/>{user.role === 'teacher' ? 'Fichas atribuídas' : 'As minhas fichas'}</h2>
-          {user.role === 'student' && <div className="student-filters" aria-label="Filtrar fichas">{(['all','pending','done'] as const).map(f => <button key={f} aria-pressed={filter === f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f === 'all' ? 'Todas' : f === 'pending' ? 'Por fazer' : 'Entregues'}</button>)}</div>}
+          {user.role === 'student' && <div className="student-filters" aria-label="Filtrar fichas">{(['all','pending','done','graded'] as const).map(f => <button key={f} aria-pressed={filter === f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f === 'all' ? 'Todas' : f === 'pending' ? 'Por fazer' : f === 'done' ? 'A aguardar avaliação' : 'Avaliadas'}</button>)}</div>}
           {visibleAssignments.length === 0 ? <div className="empty"><FileText size={32}/><p>{user.role === 'teacher' ? 'Vamos criar a primeira ficha?' : filter === 'pending' ? 'Tudo em dia!' : 'Ainda não há fichas aqui.'}</p><small>{user.role === 'teacher' ? 'Usa o botão «Nova ficha» para começar.' : 'As fichas publicadas pelo professor aparecem neste espaço.'}</small></div> : visibleAssignments.map(a => <div className="portal-entry" key={a.id}>
             <div className="portal-title"><div><b>{a.title}</b><small>{a.class_name} · {a.grade}.ª classe · {new Date(a.created_at).toLocaleDateString('pt-PT')}</small></div>{a.my_answer && <span className="portal-status"><CheckCircle2 size={15}/> {a.my_answer.score === null ? 'Entregue' : `Avaliada · ${a.my_answer.score}/20`}</span>}{user.role === 'student' && !a.my_answer && <span className="portal-status pending"><Clock3 size={15}/> Por fazer</span>}</div>
             <p className="portal-text">{a.instructions}</p>
@@ -247,7 +264,7 @@ export default function Portal() {
             {a.resource && <p className="portal-material"><BookOpen size={16}/>{a.resource.file_url ? <a href={a.resource.file_url} target="_blank" rel="noreferrer">{a.resource.title} <ExternalLink size={13}/></a> : a.resource.title}</p>}
             {a.resource?.body && <details><summary>Ler material da biblioteca</summary><p className="portal-text">{a.resource.body}</p></details>}
             {a.resource?.external_url && <p><a href={a.resource.external_url} target="_blank" rel="noreferrer">Abrir ligação online (requer Internet)</a></p>}
-            {user.role === 'student' ? (a.my_answer ? <div className="portal-reply"><b>A tua resposta</b><p className="portal-text">{a.my_answer.answer}</p><small>{a.my_answer.score === null ? 'A aguardar correcção' : `Nota: ${a.my_answer.score}/20`}</small>{a.my_answer.feedback && <p>Comentário: {a.my_answer.feedback}</p>}</div> : <div className="portal-reply"><label>Responder ao professor<textarea rows={4} maxLength={8000} value={studentAnswers[a.id] || ''} onChange={e => setStudentAnswers(old => ({...old,[a.id]:e.target.value}))}/></label><button className="btn btn-primary" disabled={busy || !(studentAnswers[a.id] || '').trim()} onClick={() => void sendAnswer(a.id)}><Send size={16}/> Entregar resposta</button></div>) : <><button className="portal-light" onClick={() => void toggleResponses(a.id)}>{opened === a.id ? 'Fechar respostas' : 'Ver respostas'}</button>{opened === a.id && <div className="portal-responses">{responses.length === 0 ? <p>Os alunos ainda não entregaram.</p> : responses.map(r => <div className="portal-reply" key={r.id}><b>{r.student.name} (@{r.student.username})</b><p className="portal-text">{r.answer}</p><div className="portal-review"><label>Nota (0–20)<input type="number" step="1" min="0" max="20" value={scores[r.id] ?? ''} onChange={e => setScores(old => ({...old,[r.id]:e.target.value}))}/></label><label>Comentário<input maxLength={2000} value={feedback[r.id] ?? ''} onChange={e => setFeedback(old => ({...old,[r.id]:e.target.value}))}/></label><button className="btn btn-primary" disabled={busy || !/^\d+$/.test(scores[r.id] ?? '') || Number(scores[r.id])>20} onClick={() => void gradeAnswer(r.id,a.id)}>Guardar nota</button></div></div>)}</div>}</>}
+            {user.role === 'student' ? (a.my_answer ? <div className="portal-reply"><b>A tua resposta</b><p className="portal-text">{a.my_answer.answer}</p><small>{a.my_answer.score === null ? 'A aguardar correcção' : `Nota: ${a.my_answer.score}/20`}</small>{a.my_answer.feedback && <p>Comentário: {a.my_answer.feedback}</p>}</div> : <StudentReply key={`${user.username}:${a.id}`} username={user.username} assignmentId={a.id} title={a.title} submit={answer => sendAnswer(a.id, answer)}/>) : <><button className="portal-light" onClick={() => void toggleResponses(a.id)}>{opened === a.id ? 'Fechar respostas' : 'Ver respostas'}</button>{opened === a.id && <div className="portal-responses">{responses.length === 0 ? <p>Os alunos ainda não entregaram.</p> : responses.map(r => <div className="portal-reply" key={r.id}><b>{r.student.name} (@{r.student.username})</b><p className="portal-text">{r.answer}</p><div className="portal-review"><label>Nota (0–20)<input type="number" step="1" min="0" max="20" value={scores[r.id] ?? ''} onChange={e => setScores(old => ({...old,[r.id]:e.target.value}))}/></label><label>Comentário<input maxLength={2000} value={feedback[r.id] ?? ''} onChange={e => setFeedback(old => ({...old,[r.id]:e.target.value}))}/></label><button className="btn btn-primary" disabled={busy || !/^\d+$/.test(scores[r.id] ?? '') || Number(scores[r.id])>20} onClick={() => void gradeAnswer(r.id,a.id)}>Guardar nota</button></div></div>)}</div>}</>}
           </div>)}
         </div>}
       </>}
