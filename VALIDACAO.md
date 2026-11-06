@@ -1,3 +1,11 @@
+# Validação da v0.3.4
+
+- 14 testes React e compilação TypeScript/Vite passaram.
+- A página inicial do aluno apresenta cartões compactos e abre apenas a tarefa seleccionada. O regresso ao painel mantém o rascunho.
+- Os testes verificam navegação, filtros, nota zero, revisão, entrega, falhas de ligação e privacidade entre contas.
+- Chromium com API simulada: painel a 1440 e 390 px, navegação, recuperação do rascunho e entrega passaram; sem transbordo horizontal no telemóvel.
+- Sem alterações ao backend ou esquema da base de dados.
+
 # Validação da v0.3.3
 
 - 13 testes React passaram: 5 testes existentes do professor e 8 novos testes do aluno.
