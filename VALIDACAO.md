@@ -29,3 +29,16 @@
 - 3 testes do importador passaram: cópia dos dados/histórico, recusa de destino ocupado e falta de espaço.
 
 - Navegador Chromium: biblioteca, publicação pelo professor, resposta e filtros do aluno, com API simulada. Layout verificado a 1440 px e 390 px; sem transbordo horizontal no telemóvel. Não equivale a um ensaio físico no Windows/iPhone.
+
+
+## v0.3.5 — turmas e ferramentas de acompanhamento
+
+- Professor: abrir um cartão de turma mostra apenas as fichas dessa turma. «Todas as turmas» regressa à lista.
+- Dentro da turma: alternar entre Fichas, Alunos e Avaliações; pesquisar e inscrever alunos; criar ficha com turma pré-seleccionada.
+- Avaliações: abrir a ficha da fila pendente, guardar nota (incluindo zero) e confirmar que o contador diminui. Uma falha mantém a nota escrita para nova tentativa.
+- Ficha: consultar quem ainda não entregou; rever respostas já avaliadas pelo separador Fichas.
+- Aluno: combinar pesquisa, turma e estado; abrir tarefa, escrever rascunho, voltar e reabrir; consultar nota e comentário do professor.
+- Verificar em ecrã estreito (390 px) e computador; navegação por teclado nos cartões.
+- Confirmar também na instalação Windows e no telemóvel ligado à rede local, sem acesso à Internet.
+
+Validação de desenvolvimento: 30 testes Django, 18 testes frontend, 3 testes do importador e compilação TypeScript/Vite. Nenhuma alteração de modelo ou migração incluída. A captura automatizada do navegador ficou bloqueada pelo ambiente de execução (socket do Chromium); a validação visual real e o teste offline em Windows continuam pendentes.

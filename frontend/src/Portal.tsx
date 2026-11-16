@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import StudentReply, { clearStudentDrafts } from './StudentReply'
-import { BookOpen, CheckCircle2, ExternalLink, GraduationCap, LockKeyhole, LogOut, Plus, Send, Users, ArrowLeft, FileText, Clock3 } from 'lucide-react'
+import { BookOpen, CheckCircle2, ExternalLink, GraduationCap, LockKeyhole, LogOut, Plus, Send, Users, ArrowLeft, FileText, Clock3, Search, ArrowRight, RefreshCw } from 'lucide-react'
 
 type Person = { username: string; name: string }
 type Profile = Person & { role: 'admin' | 'teacher' | 'student' }
 type ClassRoom = { id: number; name: string; grade: number; teacher: Person; student_count: number; students?: Person[] }
 type Material = { id: number; title: string; grade: number; subject: string }
-type Assignment = { id: number; title: string; created_at: string; attachment_url: string | null; instructions: string; class_id: number; class_name: string; grade: number; resource: { title: string; file_url: string | null; body: string; external_url: string } | null; my_answer: { answer: string; score: number | null; feedback: string } | null }
+type Assignment = { response_count?: number; pending_count?: number; id: number; title: string; created_at: string; attachment_url: string | null; instructions: string; class_id: number; class_name: string; grade: number; resource: { title: string; file_url: string | null; body: string; external_url: string } | null; my_answer: { answer: string; score: number | null; feedback: string } | null }
 type Answer = { id: number; student: Person; answer: string; score: number | null; feedback: string }
 
 async function api<T>(path: string, body?: object | FormData, expectedUsername?: string): Promise<T> {
@@ -35,7 +35,12 @@ export default function Portal() {
   const actionLock = useRef(false)
   const responseRequest = useRef(0)
   const [selectedTask, setSelectedTask] = useState<number | null>(null)
-  const [workspace, setWorkspace] = useState<'assignments' | 'classes'>('assignments')
+  const [workspace, setWorkspace] = useState<'assignments' | 'classes' | 'students'>('assignments')
+  const [selectedClass, setSelectedClass] = useState<number | null>(null)
+  const [teacherPending, setTeacherPending] = useState(false)
+  const [query, setQuery] = useState('')
+  const [classFilter, setClassFilter] = useState('')
+  const [responseLoading, setResponseLoading] = useState(false)
   const [composing, setComposing] = useState(false)
   const [showClassForm, setShowClassForm] = useState(false)
   const [filter, setFilter] = useState<'all' | 'pending' | 'done' | 'graded'>('all')
@@ -104,7 +109,7 @@ export default function Portal() {
       await api('/api/portal/logout/', {})
       responseRequest.current += 1
       setUser(null); setClasses([]); setAssignments([]); setMaterials([])
-      setSelectedTask(null); clearStudentDrafts(); setResponses([]); setScores({}); setFeedback({}); setOpened(null)
+      setSelectedTask(null); setSelectedClass(null); setTeacherPending(false); setQuery(''); setClassFilter(''); clearStudentDrafts(); setResponses([]); setScores({}); setFeedback({}); setOpened(null)
       setAssignClass(''); setAssignTitle(''); setAssignInstructions(''); setAssignMaterial('')
       setDocumentMode('none'); setAssignPdf(null); setFileReset(old => old + 1)
       setEnrollClass(0); setEnrollUsername(''); setClassName('')
@@ -145,6 +150,7 @@ export default function Portal() {
       if (documentMode === 'existing') form.append('resource_id', assignMaterial)
       if (documentMode === 'upload' && assignPdf) form.append('file', assignPdf)
       await api('/api/portal/assignments/', form)
+      setSelectedClass(Number(assignClass))
       setAssignTitle(''); setAssignInstructions(''); setDocumentMode('none'); setAssignMaterial(''); setAssignPdf(null); setFileReset(old => old + 1); setComposing(false); setWorkspace('assignments'); await refresh()
     }, 'Ficha atribuída à turma.')
   }
@@ -162,7 +168,7 @@ export default function Portal() {
   async function toggleResponses(id: number) {
     const requestId = ++responseRequest.current
     if (opened === id) { setOpened(null); return }
-    setError('')
+    setError(''); setResponseLoading(true); setOpened(id); setResponses([])
     try {
       const result = await api<{results: Answer[]}>(`/api/portal/assignments/${id}/responses/`)
       if (requestId !== responseRequest.current) return
@@ -170,21 +176,47 @@ export default function Portal() {
       setScores(Object.fromEntries(result.results.map(r => [r.id, r.score?.toString() ?? ''])))
       setFeedback(Object.fromEntries(result.results.map(r => [r.id, r.feedback])))
       setOpened(id)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Erro a consultar respostas.') }
+    } catch (e) { if (requestId === responseRequest.current) { setOpened(null); setError(e instanceof Error ? e.message : 'Erro a consultar respostas.') } }
+    finally { if (requestId === responseRequest.current) setResponseLoading(false) }
   }
   async function gradeAnswer(id: number, assignmentId: number) {
+    const requestId = responseRequest.current
     await act(async () => {
       await api(`/api/portal/responses/${id}/grade/`, { score: Number(scores[id]), feedback: feedback[id] || '' })
       const result = await api<{results: Answer[]}>(`/api/portal/assignments/${assignmentId}/responses/`)
-      setResponses(result.results)
+      if (requestId === responseRequest.current) setResponses(result.results)
+      setAssignments(old => old.map(a => a.id === assignmentId ? {...a, response_count: result.results.length, pending_count: result.results.filter(r => r.score === null).length} : a))
     }, 'Avaliação guardada.')
   }
   const currentClass = classes.find(c => String(c.id) === assignClass)
   const availableMaterials = materials.filter(m => m.grade === currentClass?.grade)
 
-  const visibleAssignments = assignments.filter(a => filter === 'all' || (filter === 'pending' ? !a.my_answer : filter === 'done' ? a.my_answer?.score === null : a.my_answer != null && a.my_answer.score !== null))
+  const classroom = classes.find(c => c.id === selectedClass)
+  const scopedAssignments = assignments.filter(a => selectedClass === null || a.class_id === selectedClass)
+  const pendingCount = scopedAssignments.reduce((total, a) => total + (a.pending_count ?? 0), 0)
+  const enrolledCount = classroom?.student_count ?? classes.reduce((total, c) => total + c.student_count, 0)
+  const visibleAssignments = (user?.role === 'teacher' ? scopedAssignments : assignments).filter(a => {
+    const matchesText = `${a.title} ${a.instructions} ${a.class_name}`.toLocaleLowerCase('pt').includes(query.trim().toLocaleLowerCase('pt'))
+    const matchesClass = !classFilter || String(a.class_id) === classFilter
+    if (user?.role === 'teacher') return matchesText && matchesClass && (!teacherPending || (a.pending_count ?? 0) > 0)
+    return matchesText && matchesClass && (filter === 'all' || (filter === 'pending' ? !a.my_answer : filter === 'done' ? a.my_answer?.score === null : a.my_answer != null && a.my_answer.score !== null))
+  })
+  function navigate(view: 'assignments' | 'classes' | 'students', pending = false) {
+    responseRequest.current += 1
+    setWorkspace(view); setTeacherPending(pending); setSelectedTask(null); setOpened(null)
+    setResponseLoading(false); setResponses([]); setQuery(''); setClassFilter(''); setComposing(false); setShowClassForm(false)
+    setEnrollClass(0); setEnrollUsername(''); setError(''); setSuccess('')
+  }
+  function openClass(id: number | null) {
+    setSelectedClass(id); navigate(id === null ? 'classes' : 'assignments')
+  }
+  function compose() {
+    setAssignClass(selectedClass === null ? '' : String(selectedClass))
+    setDocumentMode('none'); setAssignMaterial(''); setAssignPdf(null); setFileReset(old => old + 1)
+    navigate('assignments'); setComposing(true)
+  }
 
-  return <section className={`portal container ${user?.role === 'student' ? 'student-space' : ''}`}>
+  return <section className={`portal container ${user?.role === 'student' ? 'student-space' : user?.role === 'teacher' ? 'teacher-space' : ''}`}>
     <div className="portal-heading"><span className="section-kicker">O TEU ESPAÇO DE APRENDIZAGEM</span><h1>{user ? `Olá, ${user.name}` : 'Bom ter-te aqui.'}</h1><p>{!user ? 'Entra para acompanhar as tuas turmas, fichas e resultados.' : user.role === 'teacher' ? 'Organiza as turmas e acompanha cada aprendizagem.' : user.role === 'student' ? 'As tuas fichas, respostas e notas, num só lugar.' : 'Tudo pronto para cuidar da tua escola.'}</p></div>
     {error && <div className="portal-alert portal-danger" role="alert">{error}</div>}
     {success && <div className="portal-alert portal-good" role="status">{success}</div>}
@@ -206,13 +238,34 @@ export default function Portal() {
           <p>Não precisas de Internet para responder, mas mantém a ligação ao Wi-Fi da EduBox para entregar.</p>
         </details>}
         {user.role === 'admin' && <div className="portal-panel"><h2>Administração escolar</h2><p>Cria utilizadores e atribui-lhes os grupos <b>Professor</b> ou <b>Aluno</b> na administração. O superutilizador continua reservado à gestão.</p><a className="btn btn-primary" href="/admin/" target="_blank" rel="noreferrer">Abrir administração <ExternalLink size={15}/></a></div>}
-        {user.role === 'teacher' && <div className="workspace-bar">
-          <div className="workspace-tabs" aria-label="Área de trabalho">
-            <button className={workspace === 'assignments' ? 'active' : ''} aria-pressed={workspace === 'assignments'} onClick={() => {setWorkspace('assignments');setComposing(false)}}><FileText size={18}/> Fichas <span>{assignments.length}</span></button>
-            {user.role === 'teacher' && <button className={workspace === 'classes' ? 'active' : ''} aria-pressed={workspace === 'classes'} onClick={() => {setWorkspace('classes');setComposing(false)}}><Users size={18}/> Turmas <span>{classes.length}</span></button>}
+        {user.role === 'teacher' && <>
+          {!composing && <>
+            {classroom && <button className="back" onClick={() => openClass(null)}><ArrowLeft size={16}/> Todas as turmas</button>}
+            <div className="learning-banner teacher-banner">
+              <div><span className="section-kicker">{classroom ? `${classroom.grade}.ª CLASSE · ESPAÇO DA TURMA` : 'ENSINAR. ACOMPANHAR. INSPIRAR.'}</span>
+                <h2>{classroom ? classroom.name : 'Cada turma, um mundo para descobrir.'}</h2>
+                <p>{classroom ? 'Fichas, alunos e avaliações desta turma, sempre à mão.' : 'Prepara a próxima aula e acompanha o progresso das tuas turmas.'}</p>
+                <button className="btn" onClick={() => navigate('assignments', true)}><CheckCircle2 size={18}/> {pendingCount ? 'Avaliar respostas' : 'Consultar avaliações'} <ArrowRight size={18}/></button>
+              </div>
+              <div className="learning-orbit"><GraduationCap size={42}/><strong>{classroom ? classroom.student_count : classes.length}</strong><small>{classroom ? 'alunos nesta turma' : 'turmas para acompanhar'}</small></div>
+            </div>
+            <div className="workspace-stats" aria-label="Resumo do professor">
+              <div><Users size={21}/><strong>{enrolledCount}</strong><span>{classroom ? 'Alunos inscritos' : 'Inscrições nas turmas'}</span></div>
+              <div><FileText size={21}/><strong>{scopedAssignments.length}</strong><span>Fichas criadas</span></div>
+              <div><Send size={21}/><strong>{scopedAssignments.reduce((total, a) => total + (a.response_count ?? 0), 0)}</strong><span>Respostas entregues</span></div>
+              <div className="stat-attention"><Clock3 size={21}/><strong>{pendingCount}</strong><span>Por avaliar</span></div>
+            </div>
+          </>}
+          <div className="workspace-bar">
+            <div className="workspace-tabs" aria-label="Área de trabalho">
+              {!classroom && <button className={workspace === 'classes' ? 'active' : ''} aria-pressed={workspace === 'classes'} onClick={() => navigate('classes')}><Users size={18}/> Turmas <span>{classes.length}</span></button>}
+              <button className={workspace === 'assignments' && !teacherPending ? 'active' : ''} aria-pressed={workspace === 'assignments' && !teacherPending} onClick={() => navigate('assignments')}><FileText size={18}/> Fichas <span>{scopedAssignments.length}</span></button>
+              {classroom && <button className={workspace === 'students' ? 'active' : ''} aria-pressed={workspace === 'students'} onClick={() => navigate('students')}><Users size={18}/> Alunos <span>{classroom.student_count}</span></button>}
+              <button className={teacherPending ? 'active' : ''} aria-pressed={teacherPending} onClick={() => navigate('assignments', true)}><CheckCircle2 size={18}/> Avaliações <span>{pendingCount}</span></button>
+            </div>
+            <div className="workspace-actions"><button className="portal-light" disabled={busy} aria-label="Actualizar dados" onClick={() => {navigate(workspace, teacherPending); void act(refresh, 'Dados actualizados.')}}><RefreshCw size={16}/></button><button className="btn btn-primary" disabled={busy} onClick={compose}><Plus size={18}/> Nova ficha</button></div>
           </div>
-          {user.role === 'teacher' && <button className="btn btn-primary" disabled={busy} onClick={() => {setComposing(true);setWorkspace('assignments')}}><Plus size={18}/> Nova ficha</button>}
-        </div>}
+        </>}
         {user.role === 'teacher' && <>
           <div className="portal-grid">
             {workspace === 'classes' && showClassForm && <form className="portal-panel compose-panel" onSubmit={e => void addClass(e)}>
@@ -251,9 +304,23 @@ export default function Portal() {
               <button className="btn btn-primary" disabled={busy || !assignClass}><Send size={16}/> {busy ? 'A publicar…' : 'Publicar'}</button>
             </form>}
           </div>
-          {workspace === 'classes' && <div className="portal-panel"><div className="panel-heading"><h2><GraduationCap size={21}/> As minhas turmas</h2><button className="portal-light" onClick={() => setShowClassForm(!showClassForm)}><Plus size={16}/> Nova turma</button></div>
-            {classes.length === 0 ? <p>A tua primeira turma começa aqui. Selecciona «Nova turma».</p> : classes.map(c => <div className="portal-entry" key={c.id}><div><b>{c.name} · {c.grade}.ª classe</b><small>{c.student_count} aluno(s){c.students?.length ? ' · ' + c.students.map(s => s.name).join(', ') : ''}</small></div><button className="portal-light" onClick={() => setEnrollClass(enrollClass === c.id ? 0 : c.id)}>Inscrever aluno</button>{enrollClass === c.id && <form className="portal-inline" onSubmit={e => void addStudent(e)}><input placeholder="Utilizador do aluno" required value={enrollUsername} onChange={e => setEnrollUsername(e.target.value)}/><button className="btn btn-primary" disabled={busy}>Inscrever</button></form>}</div>)}
-            <p className="portal-hint">Para inscrever um aluno, usa o nome de utilizador da conta criada pela escola.</p>
+          {workspace === 'classes' && <div className="class-directory"><div className="panel-heading"><h2><GraduationCap size={21}/> As minhas turmas</h2><button className="portal-light" onClick={() => setShowClassForm(!showClassForm)}><Plus size={16}/> Nova turma</button></div>
+            {classes.length === 0 ? <div className="empty"><Users size={32}/><p>A tua primeira turma começa aqui.</p><small>Selecciona «Nova turma» para começar.</small></div> : <div className="task-gallery">{classes.map((c, index) => {
+              const tasks = assignments.filter(a => a.class_id === c.id)
+              const pending = tasks.reduce((total, a) => total + (a.pending_count ?? 0), 0)
+              return <button className={`task-tile class-tile tone-${index % 3}`} key={c.id} aria-label={`Abrir turma ${c.name}`} onClick={() => openClass(c.id)}>
+                <div className="task-art"><Users size={34}/><span>{c.grade}.ª</span><i aria-hidden="true"/></div>
+                <div className="task-tile-body"><small>{c.grade}.ª classe</small><h3>{c.name}</h3><p>{c.student_count} aluno(s) · {tasks.length} ficha(s)</p><div><span>{pending ? `${pending} resposta(s) por avaliar` : 'Abrir turma'}</span><ArrowRight size={18}/></div></div>
+              </button>
+            })}</div>}
+          </div>}
+          {workspace === 'students' && classroom && <div className="portal-panel"><div className="panel-heading"><h2><Users size={21}/> Alunos de {classroom.name}</h2><button className="portal-light" onClick={() => {setEnrollClass(enrollClass ? 0 : classroom.id);setEnrollUsername('')}}><Plus size={16}/> Inscrever aluno</button></div>
+            {enrollClass === classroom.id && <form className="portal-inline" onSubmit={e => void addStudent(e)}><label>Utilizador do aluno<input required value={enrollUsername} onChange={e => setEnrollUsername(e.target.value)}/></label><button className="btn btn-primary" disabled={busy}>Inscrever</button></form>}
+            <p className="portal-hint">Usa o nome de utilizador da conta de aluno criada pela escola.</p>
+            <label className="workspace-search"><Search size={17}/><span className="sr-only">Pesquisar alunos</span><input type="search" placeholder="Pesquisar por nome ou utilizador…" value={query} onChange={e => setQuery(e.target.value)}/></label>
+            {classroom.students?.filter(s => `${s.name} ${s.username}`.toLocaleLowerCase('pt').includes(query.trim().toLocaleLowerCase('pt'))).map(s => <div className="roster-row" key={s.username}><span className="avatar" aria-hidden="true">{s.name.slice(0,1).toUpperCase()}</span><div><strong>{s.name}</strong><small>@{s.username}</small></div><span className="portal-status">Inscrito</span></div>)}
+            {!classroom.student_count && <div className="empty"><Users size={30}/><p>Esta turma ainda não tem alunos.</p><small>Selecciona «Inscrever aluno» para adicionar a primeira conta.</small></div>}
+            {!!classroom.student_count && !classroom.students?.some(s => `${s.name} ${s.username}`.toLocaleLowerCase('pt').includes(query.trim().toLocaleLowerCase('pt'))) && <p>Nenhum aluno corresponde à pesquisa.</p>}
           </div>}
         </>}
         {user.role === 'student' && selectedTask === null && <div className="learning-banner">
@@ -261,22 +328,30 @@ export default function Portal() {
           {assignments.some(a => !a.my_answer) && <button className="btn" onClick={() => setSelectedTask(assignments.find(a => !a.my_answer)!.id)}>Começar uma ficha <ArrowLeft className="forward-arrow" size={18}/></button>}</div>
           <div className="learning-orbit" aria-label={`${assignments.filter(a => a.my_answer).length} de ${assignments.length} fichas entregues`}><BookOpen size={42}/><strong>{assignments.filter(a => a.my_answer).length}<span> / {assignments.length}</span></strong><small>fichas entregues</small></div>
         </div>}
-        {(user.role === 'teacher' || user.role === 'student') && workspace === 'assignments' && !composing && <div className="portal-panel assignment-list">{user.role === 'student' && selectedTask !== null && <button className="back" onClick={() => setSelectedTask(null)}><ArrowLeft size={16}/> Voltar ao meu espaço</button>}<h2><BookOpen size={21}/>{user.role === 'teacher' ? 'Fichas atribuídas' : selectedTask === null ? 'Explora as tuas fichas' : 'O teu momento de aprender'}</h2>
+        {(user.role === 'teacher' || user.role === 'student') && workspace === 'assignments' && !composing && <div className="portal-panel assignment-list">
+          {selectedTask !== null && <button className="back" onClick={() => {setSelectedTask(null);setOpened(null);responseRequest.current += 1}}><ArrowLeft size={16}/> {user.role === 'student' ? 'Voltar ao meu espaço' : 'Voltar às fichas'}</button>}
+          <h2><BookOpen size={21}/>{user.role === 'teacher' ? selectedTask !== null ? 'Ficha e respostas' : teacherPending ? 'Respostas por avaliar' : classroom ? `Fichas de ${classroom.name}` : 'Fichas atribuídas' : selectedTask === null ? 'Explora as tuas fichas' : 'O teu momento de aprender'}</h2>
+          {selectedTask === null && <div className="workspace-tools">
+            <label className="workspace-search"><Search size={17}/><span className="sr-only">Pesquisar fichas</span><input type="search" placeholder="Pesquisar fichas…" value={query} onChange={e => setQuery(e.target.value)}/></label>
+            {user.role === 'student' && <button className="portal-light" disabled={busy} onClick={() => void act(refresh, 'Fichas e notas actualizadas.')}><RefreshCw size={16}/> Actualizar</button>}
+            {selectedClass === null && classes.length > 1 && <label className="class-filter"><span className="sr-only">Filtrar por turma</span><select value={classFilter} onChange={e => setClassFilter(e.target.value)}><option value="">Todas as turmas</option>{classes.map(c => <option value={c.id} key={c.id}>{c.name} · {c.grade}.ª</option>)}</select></label>}
+          </div>}
           {user.role === 'student' && selectedTask === null && <div className="student-filters" aria-label="Filtrar fichas">{(['all','pending','done','graded'] as const).map(f => <button key={f} aria-pressed={filter === f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{f === 'all' ? 'Todas' : f === 'pending' ? 'Por fazer' : f === 'done' ? 'A aguardar avaliação' : 'Avaliadas'}</button>)}</div>}
-          {user.role === 'student' && selectedTask === null && visibleAssignments.length > 0 ? <div className="task-gallery">{visibleAssignments.map((a, index) => <button className={`task-tile tone-${index % 3}`} key={a.id} onClick={() => setSelectedTask(a.id)}>
+          {selectedTask === null && visibleAssignments.length > 0 ? <div className="task-gallery">{visibleAssignments.map((a, index) => <button className={`task-tile tone-${index % 3}`} key={a.id} onClick={() => {setSelectedTask(a.id); if (user.role === 'teacher' && teacherPending) void toggleResponses(a.id)}}>
             <div className="task-art"><FileText size={34}/><span>{a.grade}.ª</span><i aria-hidden="true"/></div>
-            <div className="task-tile-body"><small>{a.class_name} · {a.attachment_url || a.resource ? 'Com material de apoio' : 'Actividade escrita'}</small><h3>{a.title}</h3><p>{a.instructions}</p><div><span>{!a.my_answer ? 'Por fazer' : a.my_answer.score === null ? 'A aguardar avaliação' : `Avaliada · ${a.my_answer.score}/20`}</span><ArrowLeft className="forward-arrow" size={18}/></div></div>
-          </button>)}</div> : visibleAssignments.length === 0 && selectedTask === null ? <div className="empty"><FileText size={32}/><p>{user.role === 'teacher' ? 'Vamos criar a primeira ficha?' : filter === 'pending' ? 'Tudo em dia!' : 'Ainda não há fichas aqui.'}</p><small>{user.role === 'teacher' ? 'Usa o botão «Nova ficha» para começar.' : 'As fichas publicadas pelo professor aparecem neste espaço.'}</small></div> : (user.role === 'student' ? assignments.filter(a => a.id === selectedTask) : visibleAssignments).map(a => <div className="portal-entry" key={a.id}>
+            <div className="task-tile-body"><small>{a.class_name} · {a.attachment_url || a.resource ? 'Com material de apoio' : 'Actividade escrita'}</small><h3>{a.title}</h3><p>{a.instructions}</p><div><span>{user.role === 'teacher' ? `${a.response_count ?? 0} entregue(s) · ${a.pending_count ?? 0} por avaliar` : !a.my_answer ? 'Por fazer' : a.my_answer.score === null ? 'A aguardar avaliação' : `Avaliada · ${a.my_answer.score}/20`}</span><ArrowLeft className="forward-arrow" size={18}/></div></div>
+          </button>)}</div> : visibleAssignments.length === 0 && selectedTask === null ? <div className="empty"><FileText size={32}/><p>{query || classFilter ? 'Nenhuma ficha encontrada.' : user.role === 'teacher' ? teacherPending ? 'Não há respostas por avaliar.' : 'Vamos criar a primeira ficha?' : filter === 'pending' ? 'Tudo em dia!' : 'Ainda não há fichas aqui.'}</p><small>{query || classFilter ? 'Experimenta outra pesquisa ou turma.' : user.role === 'teacher' ? teacherPending ? 'As novas respostas dos alunos aparecerão aqui.' : 'Usa o botão «Nova ficha» para começar.' : 'As fichas publicadas pelo professor aparecem neste espaço.'}</small></div> : assignments.filter(a => a.id === selectedTask).map(a => <div className="portal-entry" key={a.id}>
             <div className="portal-title"><div><b>{a.title}</b><small>{a.class_name} · {a.grade}.ª classe · {new Date(a.created_at).toLocaleDateString('pt-PT')}</small></div>{a.my_answer && <span className="portal-status"><CheckCircle2 size={15}/> {a.my_answer.score === null ? 'Entregue' : `Avaliada · ${a.my_answer.score}/20`}</span>}{user.role === 'student' && !a.my_answer && <span className="portal-status pending"><Clock3 size={15}/> Por fazer</span>}</div>
             <p className="portal-text">{a.instructions}</p>
             {a.attachment_url && <p className="portal-material"><BookOpen size={16}/><a href={a.attachment_url} target="_blank" rel="noreferrer">Abrir PDF desta ficha <ExternalLink size={13}/></a></p>}
             {a.resource && <p className="portal-material"><BookOpen size={16}/>{a.resource.file_url ? <a href={a.resource.file_url} target="_blank" rel="noreferrer">{a.resource.title} <ExternalLink size={13}/></a> : a.resource.title}</p>}
             {a.resource?.body && <details><summary>Ler material da biblioteca</summary><p className="portal-text">{a.resource.body}</p></details>}
             {a.resource?.external_url && <p><a href={a.resource.external_url} target="_blank" rel="noreferrer">Abrir ligação online (requer Internet)</a></p>}
-            {user.role === 'student' ? (a.my_answer ? <div className="portal-reply"><b>A tua resposta</b><p className="portal-text">{a.my_answer.answer}</p><small>{a.my_answer.score === null ? 'A aguardar correcção' : `Nota: ${a.my_answer.score}/20`}</small>{a.my_answer.feedback && <p>Comentário: {a.my_answer.feedback}</p>}</div> : <StudentReply key={`${user.username}:${a.id}`} username={user.username} assignmentId={a.id} title={a.title} submit={answer => sendAnswer(a.id, answer)}/>) : <><button className="portal-light" onClick={() => void toggleResponses(a.id)}>{opened === a.id ? 'Fechar respostas' : 'Ver respostas'}</button>{opened === a.id && <div className="portal-responses">{responses.length === 0 ? <p>Os alunos ainda não entregaram.</p> : responses.map(r => <div className="portal-reply" key={r.id}><b>{r.student.name} (@{r.student.username})</b><p className="portal-text">{r.answer}</p><div className="portal-review"><label>Nota (0–20)<input type="number" step="1" min="0" max="20" value={scores[r.id] ?? ''} onChange={e => setScores(old => ({...old,[r.id]:e.target.value}))}/></label><label>Comentário<input maxLength={2000} value={feedback[r.id] ?? ''} onChange={e => setFeedback(old => ({...old,[r.id]:e.target.value}))}/></label><button className="btn btn-primary" disabled={busy || !/^\d+$/.test(scores[r.id] ?? '') || Number(scores[r.id])>20} onClick={() => void gradeAnswer(r.id,a.id)}>Guardar nota</button></div></div>)}</div>}</>}
+            {user.role === 'student' ? (a.my_answer ? <div className="portal-reply"><b>A tua resposta</b><p className="portal-text">{a.my_answer.answer}</p><small>{a.my_answer.score === null ? 'A aguardar correcção' : `Nota: ${a.my_answer.score}/20`}</small>{a.my_answer.feedback && <p>Comentário: {a.my_answer.feedback}</p>}</div> : <StudentReply key={`${user.username}:${a.id}`} username={user.username} assignmentId={a.id} title={a.title} submit={answer => sendAnswer(a.id, answer)}/>) : <><button className="portal-light" onClick={() => void toggleResponses(a.id)}>{opened === a.id ? 'Fechar respostas' : 'Ver respostas'}</button>{opened === a.id && <div className="portal-responses">{!responseLoading && <p className="portal-hint">{responses.length} resposta(s) · {responses.filter(r => r.score === null).length} por avaliar</p>}{!responseLoading && <details className="missing-students"><summary>Quem ainda não entregou?</summary><p>{classes.find(c => c.id === a.class_id)?.students?.filter(s => !responses.some(r => r.student.username === s.username)).map(s => s.name).join(', ') || (classes.find(c => c.id === a.class_id)?.student_count ? 'Todos os alunos inscritos já entregaram.' : 'Esta turma ainda não tem alunos.')}</p></details>}{responseLoading ? <p role="status">A carregar respostas…</p> : responses.length === 0 ? <p>Os alunos ainda não entregaram.</p> : responses.map(r => <div className="portal-reply" key={r.id}><b>{r.student.name} (@{r.student.username})</b><span className="review-status">{r.score === null ? 'Por avaliar' : `Avaliada · ${r.score}/20`}</span><p className="portal-text">{r.answer}</p><div className="portal-review"><label>Nota (0–20)<input type="number" step="1" min="0" max="20" value={scores[r.id] ?? ''} onChange={e => setScores(old => ({...old,[r.id]:e.target.value}))}/></label><label>Comentário<input maxLength={2000} value={feedback[r.id] ?? ''} onChange={e => setFeedback(old => ({...old,[r.id]:e.target.value}))}/></label><button className="btn btn-primary" disabled={busy || !/^\d+$/.test(scores[r.id] ?? '') || Number(scores[r.id])>20} onClick={() => void gradeAnswer(r.id,a.id)}>Guardar nota</button></div></div>)}</div>}</>}
           </div>)}
         </div>}
       </>}
 
   </section>
 }
+
