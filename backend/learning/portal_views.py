@@ -105,10 +105,15 @@ def visible_assignments(request):
 def assignment_dict(item,user):
     mine=next((s for s in item.submissions.all() if s.student_id==user.id),None)
     resource=item.resource
-    return {'id':item.id,'title':item.title,'instructions':item.instructions,'class_id':item.classroom_id,'class_name':item.classroom.name,
+    result = {'id':item.id,'title':item.title,'instructions':item.instructions,'class_id':item.classroom_id,'class_name':item.classroom.name,
             'grade':item.classroom.grade,'created_at':item.created_at.isoformat(),
             'attachment_url':f'/api/portal/assignments/{item.pk}/file/' if item.attachment else None,'resource':{'title':resource.title,'file_url':resource.file.url if resource.file else None, 'body':resource.body, 'external_url':resource.external_url} if resource and resource.published else None,
             'my_answer':{'answer':mine.answer,'score':mine.score,'feedback':mine.feedback} if mine else None}
+    if role(user) in {'teacher', 'admin'}:
+        submissions = list(item.submissions.all())
+        result['response_count'] = len(submissions)
+        result['pending_count'] = sum(s.score is None for s in submissions)
+    return result
 
 @require_http_methods(['GET', 'POST'])
 def assignments(request):

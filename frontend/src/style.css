@@ -52,3 +52,42 @@
 .student-space .assignment-list>.portal-entry {max-width:800px;margin:24px auto;background:white;border:1px solid var(--line);border-radius:22px;padding:32px;display:block}.student-space .assignment-list>.back {margin-bottom:20px}
 @media(max-width:900px){.task-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.learning-orbit{width:160px;height:160px}}
 @media(max-width:640px){.student-space .portal-heading{padding-right:65px;margin-bottom:24px}.student-space .portal-heading h1{font-size:30px}.student-space .portal-user{top:28px}.student-space .portal-user button{padding:8px}.learning-banner{padding:26px;border-radius:20px;margin-bottom:28px}.learning-orbit{display:none}.learning-banner h2{font-size:28px}.task-gallery{grid-template-columns:1fr;gap:16px}.task-tile{flex-direction:row;min-height:160px}.task-art{width:86px;height:auto;flex-shrink:0;padding:18px;flex-direction:column;justify-content:center;gap:18px}.task-art span{font-size:28px;letter-spacing:-1px}.task-tile-body{padding:18px;min-width:0}.task-tile h3{font-size:18px}.task-tile p{margin-bottom:12px}.student-space .student-filters{gap:16px;flex-wrap:nowrap;overflow-x:auto}.student-space .student-filters button{white-space:nowrap;font-size:12px;flex-shrink:0}.student-space .assignment-list>.portal-entry{padding:20px}.student-space .assignment-list>h2{font-size:20px}}
+
+
+/* Teacher and student workspaces share the same card language. */
+.teacher-space {position:relative}
+.teacher-space .portal-user {padding:12px 16px;margin-bottom:24px}
+.teacher-banner h2 {white-space:pre-line}
+.teacher-banner {margin-bottom:22px}
+.workspace-stats {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:28px}
+.workspace-stats>div {display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px 12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px}
+.workspace-stats svg {color:var(--green)}
+.workspace-stats strong {font-size:28px;font-weight:650;line-height:1.2}
+.workspace-stats span {grid-column:1/-1;font-size:12px;color:var(--muted)}
+.workspace-stats .stat-attention {background:#f6efdf;border-color:#e8ddc4}
+.workspace-stats .stat-attention svg {color:#956820}
+.workspace-actions {display:flex;gap:10px;flex-shrink:0}
+.teacher-space .workspace-tabs {flex-wrap:wrap}
+.teacher-space .assignment-list {background:transparent;border:0;padding:0}
+.teacher-space .assignment-list>.portal-entry {background:#fff;border:1px solid var(--line);border-radius:20px;padding:28px;margin-top:18px}
+.class-directory {margin-bottom:28px}
+.class-directory h2 {display:flex;align-items:center;gap:10px;font-size:22px;font-weight:650;margin:0}
+.class-directory h2 svg {color:var(--green)}
+.class-directory .panel-heading {margin-bottom:20px}
+.workspace-tools {display:flex;gap:14px;align-items:center;margin-bottom:22px}
+.portal-panel .workspace-search {display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;background:#fff;padding:0 14px;margin:0;flex:1;min-width:0;font-weight:400;color:var(--muted)}
+.portal-panel .workspace-search input {border:0;background:transparent;padding:12px 0;outline:none;font-size:14px;min-width:0}
+.workspace-search:focus-within {outline:3px solid #176a5324;border-color:var(--green)}
+.portal-panel .class-filter {margin:0;max-width:45%;min-width:0}
+.class-filter select {font-size:14px;padding:11px 14px}
+.roster-row {display:flex;align-items:center;gap:14px;padding:18px 0;border-bottom:1px solid var(--line)}
+.roster-row:last-child {border-bottom:0}
+.roster-row>div {flex:1;min-width:0;overflow-wrap:anywhere}
+.roster-row strong {font-size:15px}
+.roster-row small {display:block;color:var(--muted);margin-top:4px;font-size:12px}
+.review-status {display:block;color:var(--green);font-size:12px;margin-top:6px}
+.teacher-space .portal-inline {align-items:end}
+.teacher-space .portal-inline label {flex:1;margin:0}
+@media(max-width:900px){.workspace-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.teacher-space .workspace-bar{flex-wrap:wrap}.teacher-space .workspace-actions{margin-left:auto}}
+@media(max-width:640px){.workspace-stats{gap:10px}.workspace-stats>div{padding:15px}.workspace-stats strong{font-size:25px}.teacher-space .workspace-tabs{width:100%;gap:3px}.teacher-space .workspace-tabs button{padding:10px;font-size:12px}.teacher-space .workspace-actions{width:100%;justify-content:flex-end}.workspace-tools{flex-direction:column;align-items:stretch;gap:10px}.portal-panel .class-filter{max-width:100%}.teacher-space .assignment-list>.portal-entry{padding:20px}.roster-row{gap:10px}.roster-row .portal-status{font-size:10px}.class-directory h2{font-size:19px}.teacher-space .portal-user .identity{overflow-wrap:anywhere}.teacher-space .portal-inline{align-items:stretch;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.task-tile{transition:none}.task-tile:hover{transform:none}}

@@ -302,3 +302,27 @@ class ReleaseRegressionTests(PdfFixtures, TestCase):
         response = client.post('/api/portal/logout/', '{}', content_type='application/json', HTTP_X_CSRFTOKEN=client.cookies['csrftoken'].value)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(client.get('/api/portal/classes/').status_code, 401)
+
+
+class TeacherDashboardTests(PortalFixtures, TestCase):
+    def test_counts_follow_grading_including_zero_without_exposing_to_students(self):
+        submission = Submission.objects.create(assignment=self.item, student=self.student, answer='Teste')
+        self.client.force_login(self.teacher)
+        task = self.client.get('/api/portal/assignments/').json()['results'][0]
+        self.assertEqual((task['response_count'], task['pending_count']), (1, 1))
+        result = self.send(f'/api/portal/responses/{submission.id}/grade/', {'score': 0, 'feedback': 'Rever.'})
+        self.assertEqual(result.status_code, 200)
+        task = self.client.get('/api/portal/assignments/').json()['results'][0]
+        self.assertEqual((task['response_count'], task['pending_count']), (1, 0))
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get('/api/portal/assignments/').json()['results'], [])
+        self.client.force_login(self.student)
+        task = self.client.get('/api/portal/assignments/').json()['results'][0]
+        self.assertNotIn('pending_count', task)
+        self.assertNotIn('response_count', task)
+        self.assertEqual(task['my_answer']['score'], 0)
+
+    def test_empty_class_assignment_has_zero_counts(self):
+        self.client.force_login(self.teacher)
+        task = self.client.get('/api/portal/assignments/').json()['results'][0]
+        self.assertEqual((task['response_count'], task['pending_count']), (0, 0))
