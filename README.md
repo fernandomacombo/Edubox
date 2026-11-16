@@ -95,4 +95,3 @@ Bases SQLite, documentos, backups, `.env`, dependências e caches não entram no
 MVP para uma rede local de confiança, com servidores de desenvolvimento. Não é uma implantação pública na Internet. A biblioteca publicada é pública nessa rede; PDFs das fichas são privados e servidos com verificação de permissões.
 
 A validação automática não substitui confirmar a instalação real em Windows e telemóvel. Ver `VALIDACAO.md`.
-

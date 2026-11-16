@@ -222,4 +222,3 @@ def grade_submission(request,pk):
     except ValueError as e:return err(str(e))
     s.score=score;s.feedback=feedback;s.save(update_fields=['score','feedback'])
     return JsonResponse({'ok':True})
-
