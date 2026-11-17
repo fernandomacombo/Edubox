@@ -77,7 +77,7 @@ def classes(request):
     try:
         obj=data(request);name=str(obj.get('name','')).strip();grade=int(obj.get('grade',0))
     except (ValueError,TypeError) as e:return err(str(e))
-    if not name or len(name)>100 or grade not in range(8,13):return err('Indica nome e classe válida (8 a 12).')
+    if not name or len(name)>100 or grade not in range(1,13):return err('Indica nome e classe válida (1 a 12).')
     try: cls=Classroom.objects.create(name=name,grade=grade,teacher=request.user)
     except IntegrityError:return err('A turma já existe.',409)
     return JsonResponse(class_dict(cls),status=201)

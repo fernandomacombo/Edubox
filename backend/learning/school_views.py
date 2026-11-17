@@ -7,17 +7,21 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from .models import Announcement, Classroom, Enrollment, Resource, Subject, TransferRecord
 from .portal_views import class_dict, data, err, guard, role, who
-from .readers import private_response
+from .readers import private_response, describe_file, render_page
 
 
 def notice_dict(item):
     return {'id': item.id, 'title': item.title, 'body': item.body,
-            'published': item.published, 'created_at': item.created_at.isoformat()}
+            'published': item.published, 'created_at': item.created_at.isoformat(),
+            'has_document': bool(item.attachment), 'document_name': item.attachment.name.rsplit('/', 1)[-1] if item.attachment else ''}
 
 
 @require_GET
 def bulletin(request):
-    return JsonResponse({'results': [notice_dict(n) for n in Announcement.objects.filter(school_wide=True, published=True)[:100]]})
+    from .school_management import public_profile, event_dict
+    from .models import SchoolEvent
+    from django.utils import timezone
+    return JsonResponse({'school': public_profile(), 'events': [event_dict(e) for e in SchoolEvent.objects.filter(published=True, date__gte=timezone.localdate())[:20]], 'results': [notice_dict(n) for n in Announcement.objects.filter(school_wide=True, published=True)[:100]]})
 
 
 @require_http_methods(['GET', 'POST'])
@@ -27,14 +31,26 @@ def notices(request):
     if request.method == 'GET':
         return private_response(JsonResponse({'results': [notice_dict(n) for n in Announcement.objects.filter(school_wide=True)[:100]]}))
     try:
-        obj = data(request)
+        obj = request.POST if request.content_type.startswith('multipart/form-data') else data(request)
         title, body = str(obj.get('title', '')).strip(), str(obj.get('body', '')).strip()
         published = obj.get('published', False)
-        if not title or len(title) > 180 or not body or len(body) > 2000 or type(published) is not bool:
+        if published not in [True,False,'true','false']: return err('Estado de publicação inválido.')
+        published = published in [True,'true']
+        if not title or len(title) > 180 or len(body) > 2000:
             return err('Preenche o título e o informe, respeitando os limites indicados.')
         item = get_object_or_404(Announcement, pk=obj['id'], school_wide=True) if obj.get('id') else Announcement(author=request.user, school_wide=True)
+        upload = request.FILES.get('file')
+        remove = obj.get('remove_document') in [True, 'true']
+        if upload and remove: return err('Escolhe substituir ou remover o documento.')
+        if upload:
+            from .models import validate_assignment_pdf
+            validate_assignment_pdf(upload)
+            item.attachment = upload
+        elif remove: item.attachment = ''
+        if not body and not item.attachment: return err('Escreve o informe ou anexa um documento PDF.')
+    except ValidationError as e: return err(' '.join(e.messages))
     except (ValueError, TypeError): return err('Informe inválido.')
-    notify_again = bool(item.pk and published and (not item.published or item.title != title or item.body != body))
+    notify_again = bool(item.pk and published and (not item.published or item.title != title or item.body != body or upload or remove))
     with transaction.atomic():
         item.title, item.body, item.published = title, body, published
         item.save()
@@ -135,3 +151,26 @@ def transfer(request):
     except (ValueError, TypeError, Classroom.DoesNotExist, get_user_model().DoesNotExist): return err('Turma ou pessoa inválida. Actualiza os dados.')
     except IntegrityError: return err('A transferência entra em conflito com uma turma existente. Revê o destino.', 409)
     return JsonResponse({'ok': True, 'message': 'Transferência concluída. O histórico foi preservado.'})
+
+
+
+def readable_notice(request, pk):
+    qs = Announcement.objects.filter(school_wide=True)
+    if role(request.user) != 'admin': qs = qs.filter(published=True)
+    return get_object_or_404(qs, pk=pk)
+
+
+@require_GET
+def notice_reader(request, pk):
+    item = readable_notice(request, pk)
+    if not item.attachment: return err('Este informe não tem documento.', 404)
+    try: viewer = describe_file(item.attachment, f'/api/school/notices/{pk}/pages/', request)
+    except Exception: return err('Não foi possível abrir o documento. Pede à escola que verifique o PDF.', 422)
+    return private_response(JsonResponse({'title': item.title, 'viewer': viewer}))
+
+
+@require_GET
+def notice_page(request, pk):
+    item = readable_notice(request, pk)
+    if not item.attachment: return err('Este informe não tem documento.', 404)
+    return render_page(item.attachment, request)

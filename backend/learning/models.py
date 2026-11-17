@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
 from django.db import models
 
-GRADES = [(i, f"{i}.ª classe") for i in range(8, 13)]
+GRADES = [(i, f"{i}.ª classe") for i in range(1, 13)]
 MAX_UPLOAD_SIZE = 80 * 1024 * 1024
 ALLOWED_UPLOAD_SUFFIXES = {".pdf", ".mp4", ".png", ".jpg", ".jpeg", ".webp"}
 
@@ -220,6 +220,7 @@ class Submission(models.Model):
 
 
 class Announcement(models.Model):
+    attachment = models.FileField('Documento do informe (PDF)', upload_to='notices/%Y/%m/', storage=private_assignment_storage, validators=[validate_assignment_pdf], blank=True)
     school_wide = models.BooleanField('Informe da escola', default=False)
     published = models.BooleanField('Publicado', default=True)
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='edubox_announcements')
@@ -256,3 +257,46 @@ class TransferRecord(models.Model):
         ordering = ['-created_at', '-id']
         verbose_name = 'Registo de transferência'
         verbose_name_plural = 'Registos de transferências'
+
+
+class SchoolProfile(models.Model):
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    name = models.CharField('Nome da escola', max_length=180)
+    code = models.CharField('Código da escola', max_length=50, blank=True)
+    motto = models.CharField('Lema', max_length=200, blank=True)
+    province = models.CharField('Província', max_length=100, blank=True)
+    district = models.CharField('Distrito / cidade', max_length=100, blank=True)
+    address = models.CharField('Endereço', max_length=240, blank=True)
+    phone = models.CharField('Telefone institucional', max_length=40, blank=True)
+    email = models.EmailField('Email institucional', blank=True)
+    principal = models.CharField('Responsável da direcção', max_length=180, blank=True)
+    academic_year = models.PositiveSmallIntegerField('Ano lectivo', validators=[MinValueValidator(2000), MaxValueValidator(2200)])
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(id=1), name='one_school_per_installation')]
+        verbose_name = 'Cadastro da escola'
+        verbose_name_plural = 'Cadastro da escola'
+
+
+class Attendance(models.Model):
+    STATES = [('present', 'Presente'), ('absent', 'Falta'), ('late', 'Atraso'), ('justified', 'Falta justificada')]
+    classroom = models.ForeignKey(Classroom, on_delete=models.PROTECT, related_name='attendance')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='edubox_attendance')
+    date = models.DateField('Data')
+    state = models.CharField('Estado', max_length=20, choices=STATES)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['classroom', 'student', 'date'], name='unique_daily_attendance')]
+        ordering = ['-date', 'student__username']
+
+
+class SchoolEvent(models.Model):
+    title = models.CharField('Evento', max_length=180)
+    date = models.DateField('Data')
+    location = models.CharField('Local', max_length=180, blank=True)
+    description = models.TextField('Descrição', max_length=2000, blank=True)
+    published = models.BooleanField('Publicado', default=False)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    class Meta:
+        ordering = ['date', 'id']

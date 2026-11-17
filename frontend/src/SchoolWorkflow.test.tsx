@@ -21,9 +21,10 @@ beforeEach(()=>{
 afterEach(()=>{cleanup();vi.clearAllMocks()})
 test('school save visibly waits for acknowledgement and blocks duplicate submits',async()=>{
  const user=userEvent.setup();render(<SchoolDashboard username="school"/> )
+ await user.click(screen.getByRole('button',{name:'Informes'}))
  await user.click(await screen.findByRole('button',{name:'Novo informe'}))
  await user.type(screen.getByLabelText('Título do informe'),'Reunião')
- await user.type(screen.getByLabelText('Texto do informe'),'Dia 20 na escola')
+ await user.type(screen.getByLabelText('Texto do informe (opcional com PDF)'),'Dia 20 na escola')
  let finish!:(value:unknown)=>void
  mocked.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve}))
  const button=screen.getByRole('button',{name:'Guardar informe'}),form=button.closest('form')!
@@ -36,7 +37,7 @@ test('school save visibly waits for acknowledgement and blocks duplicate submits
 })
 test('school transfer reviews destination before saving',async()=>{
  const user=userEvent.setup();render(<SchoolDashboard username="school"/> )
- await screen.findByRole('button',{name:'Novo informe'})
+ await screen.findByRole('button',{name:'Transferências'})
  await user.click(screen.getByRole('button',{name:'Transferências'}))
  await user.selectOptions(screen.getByLabelText('Operação'),'student')
  await user.selectOptions(screen.getByLabelText('Turma de origem'),'1')
