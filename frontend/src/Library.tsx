@@ -1,19 +1,20 @@
 import {useEffect, useMemo, useRef, useState} from 'react'
-import {BookOpen, FileSearch, Video, Headphones, Music, FileText, Image, Layers, X, ArrowRight} from 'lucide-react'
+import {BookOpen, FileSearch, Video,  FileText, Image, Layers, X, ArrowRight} from 'lucide-react'
 
 import {api} from './portalApi'
 import MaterialViewer from './MaterialViewer'
 import type {Viewer} from './MaterialViewer'
 
-export type LibraryResource = {id:number; title:string; description:string; subject:string; grade:number; has_file?:boolean;has_text?:boolean;has_external?:boolean;body?:string; rights_note:string; kind?:string; author?:string; language?:string; file_format?:string|null; created_at?:string;viewer?:Viewer|null;external_only?:boolean;viewer_label?:string}
+export type LibraryResource = {id:number; title:string; description:string; subject:string; grade:number|null;category?:string; has_file?:boolean;has_text?:boolean;has_external?:boolean;body?:string; rights_note:string; kind?:string; author?:string; language?:string; file_format?:string|null; created_at?:string;viewer?:Viewer|null;external_only?:boolean;viewer_label?:string}
 const kinds=[
   {id:'book',label:'Livros',Icon:BookOpen}, {id:'research',label:'Pesquisas',Icon:FileSearch},
-  {id:'video',label:'Vídeos',Icon:Video}, {id:'audiobook',label:'Audiolivros',Icon:Headphones},
-  {id:'audio',label:'Áudios',Icon:Music}, {id:'document',label:'Documentos',Icon:FileText},
+  {id:'video',label:'Vídeos',Icon:Video}, {id:'ebook',label:'Ebooks',Icon:BookOpen}, {id:'document',label:'Documentos',Icon:FileText},
   {id:'image',label:'Imagens',Icon:Image}, {id:'other',label:'Outros materiais',Icon:Layers},
 ]
 export default function Library({resources,search,onLogin}:{resources:LibraryResource[];search:string;onLogin?:()=>void}) {
   const [kind,setKind]=useState('all')
+  const [category,setCategory]=useState('all')
+  const [grade,setGrade]=useState('all')
   const [subject,setSubject]=useState('all')
   const [availability,setAvailability]=useState('all')
   const [sort,setSort]=useState('recent')
@@ -36,17 +37,22 @@ export default function Library({resources,search,onLogin}:{resources:LibraryRes
     return()=>{dialog.current?.close();opener.current?.focus()}
   },[lesson])
   const subjects=useMemo(()=>Array.from(new Set(resources.map(r=>r.subject))).sort((a,b)=>a.localeCompare(b,'pt')),[resources])
+  const categories=Array.from(new Set(resources.map(r=>r.category||'Geral'))).sort((a,b)=>a.localeCompare(b,'pt'))
   const visible=useMemo(()=>resources.filter(r=>
+    (category==='all'||(r.category||'Geral')===category)&&
+    (grade==='all'||(grade==='general'?r.grade==null:String(r.grade)===grade))&&
     (kind==='all'||(r.kind||'other')===kind)&&
     (subject==='all'||r.subject===subject)&&
     (availability==='all'||(availability==='local'?!!(r.has_file||r.has_text):!r.has_file&&!r.has_text))&&
-    `${r.title} ${r.subject} ${r.description} ${r.author||''}`.toLocaleLowerCase('pt').includes(search.trim().toLocaleLowerCase('pt'))
-  ).sort((a,b)=>sort==='title'?a.title.localeCompare(b.title,'pt'):(b.created_at||'').localeCompare(a.created_at||'')||b.id-a.id),[resources,kind,subject,availability,search,sort])
+    `${r.title} ${r.category||''} ${r.subject} ${r.description} ${r.author||''}`.toLocaleLowerCase('pt').includes(search.trim().toLocaleLowerCase('pt'))
+  ).sort((a,b)=>sort==='title'?a.title.localeCompare(b.title,'pt'):(b.created_at||'').localeCompare(a.created_at||'')||b.id-a.id),[resources,kind,subject,availability,search,sort,category,grade])
   return <div className="library">
-    <div className="library-intro"><BookOpen size={22}/><p><strong>Uma biblioteca para todas as classes.</strong> Explora materiais de consulta. As fichas e respostas das turmas ficam no espaço privado.</p></div>
+    <div className="library-intro"><BookOpen size={22}/><p><strong>Uma biblioteca para todos os interesses.</strong> Explora ebooks, literatura, ciência, cultura e materiais de consulta organizados pela escola. As fichas e respostas das turmas ficam no espaço privado.</p></div>
     <div className="library-categories" aria-label="Tipos de material">{kinds.map(({id,label,Icon})=><button key={id} aria-pressed={kind===id} className={kind===id?'selected':''} onClick={()=>setKind(kind===id?'all':id)}><Icon size={23}/><strong>{label}</strong><span>{resources.filter(r=>(r.kind||'other')===id).length}</span></button>)}</div>
     <div className="library-filters">
-      <button className="portal-light" aria-pressed={kind==='all'} onClick={()=>{setKind('all');setSubject('all');setAvailability('all')}}>Todos os materiais</button>
+      <button className="portal-light" aria-pressed={kind==='all'} onClick={()=>{setKind('all');setSubject('all');setAvailability('all');setCategory('all');setGrade('all')}}>Todos os materiais</button>
+      <label><span>Tema</span><select value={category} onChange={e=>setCategory(e.target.value)}><option value="all">Todos os temas</option>{categories.map(c=><option key={c}>{c}</option>)}</select></label>
+      <label><span>Classe (opcional)</span><select value={grade} onChange={e=>setGrade(e.target.value)}><option value="all">Todo o acervo</option><option value="general">Leitura geral — sem classe</option>{[8,9,10,11,12].map(g=><option key={g} value={g}>{g}.ª classe</option>)}</select></label>
       <label><span>Disciplina</span><select value={subject} onChange={e=>setSubject(e.target.value)}><option value="all">Todas as disciplinas</option>{subjects.map(s=><option key={s}>{s}</option>)}</select></label>
       <label><span>Disponibilidade</span><select value={availability} onChange={e=>setAvailability(e.target.value)}><option value="all">Todos</option><option value="local">Sem Internet</option><option value="online">Só online</option></select></label>
       <label><span>Ordenar</span><select value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Mais recentes</option><option value="title">Título A–Z</option></select></label>
@@ -55,10 +61,10 @@ export default function Library({resources,search,onLogin}:{resources:LibraryRes
     {error&&<div className="portal-alert portal-danger" role="alert">{error}{onLogin&&<button className="portal-light" onClick={onLogin}>Ir ao meu espaço</button>}</div>}
     <div className="list-title"><h3>{kind==='all'?'Explora o acervo':kinds.find(k=>k.id===kind)?.label}</h3><span role="status">{visible.length} material(is)</span></div>
     {visible.length?<div className="cards">{visible.map(item=>{
-      const {Icon,label}=kinds.find(k=>k.id===(item.kind||'other'))||kinds[7]
+      const {Icon,label}=kinds.find(k=>k.id===(item.kind||'other'))||kinds[kinds.length-1]
       return <article className={`subject-card library-card library-${item.kind||'other'}`} key={item.id}>
-        <div className="card-top"><div className="card-icon"><Icon size={25}/></div><span className="grade-badge">{item.grade}.ª classe</span></div>
-        <div className="card-subject">{label} · {item.subject}</div><h4>{item.title}</h4>{item.author&&<small className="library-author">{item.author}</small>}<p>{item.description||'Material educativo disponível para consulta.'}</p>
+        <div className="card-top"><div className="card-icon"><Icon size={25}/></div><span className="grade-badge">{item.grade?`${item.grade}.ª classe`:'Leitura geral'}</span></div>
+        <div className="card-subject">{label} · {item.category||'Geral'}{item.grade?` · ${item.subject}`:''}</div><h4>{item.title}</h4>{item.author&&<small className="library-author">{item.author}</small>}<p>{item.description||'Material educativo disponível para consulta.'}</p>
         <span className={`availability ${item.has_file||item.has_text?'local':'online'}`}>{item.has_file||item.has_text?'Disponível sem Internet':'Requer Internet'}</span>
         <div className="card-footer"><button disabled={loadingId===item.id} aria-label={`Abrir ${item.title}`} onClick={()=>void openMaterial(item)}>{loadingId===item.id?'A abrir…':'Explorar material'} <ArrowRight size={17}/></button></div>
       </article>

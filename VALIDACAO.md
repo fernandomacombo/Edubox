@@ -58,3 +58,23 @@ Percurso para confirmar no Windows:
 7. Confirmar categorias, filtros, leitor e sino no computador e telemóvel da mesma rede, sem Internet.
 
 A pré-visualização por navegador remoto não alcançou o servidor local (ligação recusada). A validação visual real em Windows/telemóvel continua necessária. A protecção de leitura reduz a descarga directa e bloqueia acessos não autorizados; não impede capturas de ecrã ou gravação da reprodução.
+
+
+## v0.3.7 — gestão escolar e continuidade pedagógica
+
+- 59 testes Django, 31 testes React e 3 testes do importador (93 no total), compilação TypeScript/Vite.
+- Testes de correcção: rascunho não exposto, publicação apenas após encerramento e avaliação, isolamento de turma e recusa de reabertura com resolução publicada.
+- Grupos: validação de membros, uma entrega por grupo, avaliação comum, proibição de auto-inscrição e exclusão de membros transferidos das novas entregas.
+- Escola: biblioteca sem classe, upload de ebook PDF, áudio antigo preservado mas inacessível, professor staff sem autorização para gerir acervo, informes em rascunho privados e informes publicados com recibos de leitura independentes.
+- Transferências: autorização exclusiva da direcção, motivo obrigatório, repetição recusada, passagem de responsabilidade, acesso antigo revogado, histórico pessoal preservado e saída externa com conta desactivada.
+- Interface: confirmação visível e bloqueio de submissão duplicada enquanto aguarda resposta; revisão da transferência; formulário de correcção; escolha de membros; biblioteca geral e mural.
+- Simulação de actualização desde o esquema v0.3.6 em SQLite temporário: preservados utilizadores, turma, inscrição, actividade, resposta, nota, material e aviso. Novas propriedades recebem valores conservadores (exercício, entregas abertas, correcção não publicada).
+- Chromium local não iniciou no ambiente de execução. Não foi possível verificar visualmente esta versão aqui; confirmar no Windows/telemóvel, incluindo navegação por teclado, leitores e disposição em ecrã estreito.
+
+Percurso de aceitação na escola:
+1. Entrar como administrador, publicar um informe e confirmar no mural **A escola** e nos avisos de aluno/professor.
+2. Criar ebook PDF com tema Literatura e sem disciplina; encontrar na biblioteca em Leitura geral.
+3. Professor cria uma avaliação, aluno entrega, professor guarda nota e resolução; só publicar a correcção depois de encerrar entregas.
+4. Criar trabalho em grupo, atribuir dois membros, entregar com um deles e verificar resposta/nota no outro.
+5. Transferir uma turma para outro professor e confirmar os acessos nas duas contas. Transferir um aluno entre turmas e confirmar o histórico sem acesso a novas tarefas da origem.
+6. Confirmar **A guardar…** e mensagem de sucesso ao guardar nota, actividade, grupo, informe e material. Simular perda de ligação e confirmar que não aparece um falso sucesso.

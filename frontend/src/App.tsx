@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import SchoolBulletin from './SchoolBulletin'
 import Portal from './Portal'
 import Library from './Library'
 import type {LibraryResource} from './Library'
 import Notifications from './Notifications'
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronRight, ClipboardCheck,
-  LockKeyhole,
+  LockKeyhole, Megaphone,
   RadioTower, RefreshCw, Search
 } from 'lucide-react'
 
@@ -14,7 +15,7 @@ type Resource = LibraryResource
 type Quiz = { id: number; title: string; subject: string; grade: number; question_count: number }
 type QuizDetail = { id: number; title: string; questions: { id: number; prompt: string; choices: { id: number; text: string }[] }[] }
 type Result = { score: number; total: number; corrections: { question_id: number; correct: boolean; correct_choice_id: number | null; correct_text: string }[] }
-type Tab = 'biblioteca' | 'testes' | 'portal'
+type Tab = 'biblioteca' | 'testes' | 'portal' | 'escola'
 
 async function getJSON<T>(path: string): Promise<T> {
   const response = await fetch(path, { credentials: 'same-origin' })
@@ -41,7 +42,7 @@ function App() {
   const [result, setResult] = useState<Result | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const gradeParam = grade === 'all' ? '' : `?grade=${grade}`
+  const gradeParam = grade === 'all' || tab==='biblioteca' ? '' : `?grade=${grade}`
 
   async function refresh() {
     const seq=++catalogRequest.current
@@ -109,7 +110,7 @@ function App() {
     finally { setSubmitting(false) }
   }
 
-  function chooseTab(next: Tab) { quizRequest.current+=1; if(next===tab){setActiveQuiz(null);setResult(null);setError('');void refresh();return} catalogRequest.current+=1; if(next==='testes')setGrade('all'); setQuizzes([]); setTab(next); setActiveQuiz(null); setResult(null); setError('') }
+  function chooseTab(next: Tab) { quizRequest.current+=1; if(next===tab){setActiveQuiz(null);setResult(null);setError('');void refresh();return} catalogRequest.current+=1; if(next==='testes'||next==='biblioteca')setGrade('all'); setQuizzes([]); setTab(next); setActiveQuiz(null); setResult(null); setError('') }
 
   return (
     <div className="app">
@@ -121,6 +122,7 @@ function App() {
             <span>Edu<span className="brand-accent">Box</span><small>A tua escola, mais perto.</small></span>
           </a>
           <nav className="links" aria-label="Navegação principal">
+            <button aria-current={tab==='escola'?'page':undefined} className={tab==='escola'?'nav-link selected':'nav-link'} onClick={()=>chooseTab('escola')}><Megaphone size={18}/> A escola</button>
             <button aria-current={tab === 'biblioteca' ? 'page' : undefined} className={tab === 'biblioteca' ? 'nav-link selected' : 'nav-link'} onClick={() => chooseTab('biblioteca')}><BookOpen size={18}/> Biblioteca</button>
             <button aria-current={tab === 'testes' ? 'page' : undefined} className={tab === 'testes' ? 'nav-link selected' : 'nav-link'} onClick={() => chooseTab('testes')}><ClipboardCheck size={18}/> Exercícios</button>
             <button aria-current={tab === 'portal' ? 'page' : undefined} className={tab === 'portal' ? 'nav-link selected' : 'nav-link'} onClick={() => chooseTab('portal')}><LockKeyhole size={16}/> Meu espaço</button>
@@ -158,14 +160,14 @@ function App() {
                 : <button className="btn btn-primary" disabled={submitting || activeQuiz.questions.length === 0 || Object.keys(answers).length !== activeQuiz.questions.length} onClick={() => void submit()}>{submitting ? 'A corrigir…' : 'Corrigir as respostas'} <ArrowRight size={17}/></button>}
             </div>
           </div>
-        ) : tab === 'portal' ? <Portal onSessionChange={() => {catalogRequest.current+=1;quizRequest.current+=1;setSessionVersion(v=>v+1);setQuizzes([]);setActiveQuiz(null);setResult(null)}}/> : <>
+        ) : tab==='escola'?<SchoolBulletin/>: tab === 'portal' ? <Portal onSessionChange={() => {catalogRequest.current+=1;quizRequest.current+=1;setSessionVersion(v=>v+1);setQuizzes([]);setActiveQuiz(null);setResult(null)}}/> : <>
           <section className="catalog container" id="catalogo">
             <div className="section-top">
               <div><span className="section-kicker">UM POUCO TODOS OS DIAS</span><h2>{tab === 'biblioteca' ? 'Conhecimento para descobrir.' : 'Aprende com a prática'}</h2><p>{tab === 'biblioteca' ? 'Livros, pesquisas, vídeos e muito mais, num só lugar.' : 'Exercícios autorizados para as tuas turmas. As outras turmas mantêm o seu espaço privado.'}</p></div>
               <div className={status === 'connected' ? 'connection connected' : 'connection disconnected'}><RadioTower size={17}/>{status === 'connected' ? 'EduBox local ligada' : status === 'loading' ? 'A verificar ligação…' : 'Servidor indisponível'}</div>
             </div>
             {(tab === 'biblioteca' || !loginRequired) && <div className="toolbar">
-              <div className="grade-list"><button aria-pressed={grade === 'all'} className={grade === 'all' ? 'grade active' : 'grade'} onClick={() => setGrade('all')}>Todas</button>{(tab === 'biblioteca' ? [8,9,10,11,12] : quizGrades).map(g => <button key={g} aria-pressed={grade === g} className={grade === g ? 'grade active' : 'grade'} onClick={() => setGrade(g)}>{g}.ª classe</button>)}</div>
+              {tab==='testes'&&<div className="grade-list"><button aria-pressed={grade === 'all'} className={grade === 'all' ? 'grade active' : 'grade'} onClick={() => setGrade('all')}>Todas</button>{quizGrades.map(g => <button key={g} aria-pressed={grade === g} className={grade === g ? 'grade active' : 'grade'} onClick={() => setGrade(g)}>{g}.ª classe</button>)}</div>}
               <label className="search"><Search size={18}/><span className="sr-only">Procurar materiais e exercícios</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="O que procuras?" /></label>
             </div>}
             {error && <div className="error-box">{error} <button onClick={() => void refresh()}><RefreshCw size={16}/> Tentar novamente</button></div>}

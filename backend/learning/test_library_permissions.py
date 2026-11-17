@@ -139,10 +139,10 @@ class ClassroomAccessTests(ClassroomFixtures, TestCase):
 
 
 class LocalMediaTests(TestCase):
-    def test_audio_range_seeking_and_unpublished_protection(self):
+    def test_video_range_seeking_and_unpublished_protection(self):
         with TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
             subject=Subject.objects.create(name='Português',grade=9)
-            item=Resource.objects.create(subject=subject,title='Audiolivro',kind='audiobook',file=SimpleUploadedFile('livro.mp3',b'0123456789'))
+            item=Resource.objects.create(subject=subject,title='Vídeo',kind='video',file=SimpleUploadedFile('video.mp4',b'0123456789'))
             user=User.objects.create_user('listener')
             user.groups.add(Group.objects.get_or_create(name='Aluno')[0])
             self.client.force_login(user)
@@ -200,7 +200,7 @@ class ProtectedReaderTests(ClassroomFixtures, TestCase):
 
     def test_streaming_links_cannot_be_reused_by_another_session(self):
         with TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
-            item=Resource.objects.create(subject=self.s9,title='Áudio',kind='audio',file=SimpleUploadedFile('audio.mp3',b'0123456789'))
+            item=Resource.objects.create(subject=self.s9,title='Vídeo',kind='video',file=SimpleUploadedFile('video.mp4',b'0123456789'))
             self.client.force_login(self.student)
             url=self.client.get(f'/api/resources/{item.id}/').json()['viewer']['stream_url']
             self.client.force_login(self.other)

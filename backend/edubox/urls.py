@@ -10,4 +10,5 @@ urlpatterns = [
 ]
 admin.site.site_header = "EduBox — Gestão de conteúdos"
 admin.site.site_title = "EduBox Administração"
-admin.site.index_title = "Painel do professor"
+admin.site.index_title = "Direcção da escola"
+

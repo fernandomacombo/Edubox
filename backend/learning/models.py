@@ -5,14 +5,14 @@ from django.db import models
 
 GRADES = [(i, f"{i}.ª classe") for i in range(8, 13)]
 MAX_UPLOAD_SIZE = 80 * 1024 * 1024
-ALLOWED_UPLOAD_SUFFIXES = {".pdf", ".mp4", ".mp3", ".png", ".jpg", ".jpeg", ".webp"}
+ALLOWED_UPLOAD_SUFFIXES = {".pdf", ".mp4", ".png", ".jpg", ".jpeg", ".webp"}
 
 
 def validate_resource_file(value):
     if not value:
         return
     if Path(value.name).suffix.lower() not in ALLOWED_UPLOAD_SUFFIXES:
-        raise ValidationError("Formato não permitido. Use PDF, MP4, MP3, JPG, PNG ou WEBP.")
+        raise ValidationError("Formato não permitido. Use PDF, MP4, JPG, PNG ou WEBP.")
     if value.size > MAX_UPLOAD_SIZE:
         raise ValidationError("O ficheiro deve ter no máximo 80 MB nesta versão.")
 
@@ -35,14 +35,15 @@ class Subject(models.Model):
 class Resource(models.Model):
     KIND_CHOICES = [
         ('book', 'Livro'), ('research', 'Trabalho de pesquisa'),
-        ('video', 'Vídeo'), ('audiobook', 'Audiolivro'), ('audio', 'Áudio'),
+        ('video', 'Vídeo'), ('ebook', 'Ebook (PDF)'),
         ('document', 'Documento / apontamentos'), ('image', 'Imagem'),
         ('other', 'Outros materiais'),
     ]
     kind = models.CharField('Tipo de material', max_length=20, choices=KIND_CHOICES, default='other')
     author = models.CharField('Autor / instituição', max_length=180, blank=True)
     language = models.CharField('Idioma', max_length=60, blank=True)
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="resources", verbose_name="Disciplina")
+    category = models.CharField("Tema / categoria", max_length=100, default="Geral")
+    subject = models.ForeignKey(Subject, null=True, blank=True, on_delete=models.SET_NULL, related_name="resources", verbose_name="Disciplina (opcional)")
     title = models.CharField("Título", max_length=180)
     description = models.TextField("Descrição", blank=True)
     body = models.TextField("Conteúdo da aula (texto simples)", blank=True)
@@ -159,6 +160,12 @@ def validate_assignment_pdf(value):
 
 
 class Assignment(models.Model):
+    KIND_CHOICES = [('exercise', 'Exercício'), ('group', 'Trabalho em grupo'), ('assessment', 'Avaliação')]
+    kind = models.CharField('Tipo de actividade', max_length=20, choices=KIND_CHOICES, default='exercise')
+    accepting_submissions = models.BooleanField('Aceita entregas', default=True)
+    correction = models.TextField('Correcção / resolução', max_length=12000, blank=True)
+    correction_published = models.BooleanField('Correcção publicada', default=False)
+
     classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, related_name='assignments')
     resource = models.ForeignKey(Resource, null=True, blank=True, on_delete=models.SET_NULL)
     title = models.CharField('Ficha', max_length=180)
@@ -176,12 +183,28 @@ class Assignment(models.Model):
         if self.resource_id and self.attachment:
             raise ValidationError('Escolhe um material existente ou um novo PDF, nunca ambos.')
         if self.resource_id and self.classroom_id:
-            if not self.resource.published or self.resource.subject.grade != self.classroom.grade:
+            if not self.resource.published or (self.resource.subject_id and self.resource.subject.grade != self.classroom.grade):
                 raise ValidationError('O material deve estar publicado e pertencer à classe da turma.')
 
     def __str__(self): return self.title
 
+class AssignmentGroup(models.Model):
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='work_groups')
+    name = models.CharField('Nome do grupo', max_length=100)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['assignment', 'name'], name='unique_assignment_group_name')]
+
+class GroupMember(models.Model):
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
+    group = models.ForeignKey(AssignmentGroup, on_delete=models.CASCADE, related_name='members')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['assignment', 'student'], name='unique_assignment_group_student')]
+
 class Submission(models.Model):
+    group = models.ForeignKey(AssignmentGroup, null=True, blank=True, on_delete=models.PROTECT)
+    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name='edubox_deliveries')
+
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='submissions')
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='edubox_submissions')
     answer = models.TextField('Resposta', max_length=8000)
@@ -197,6 +220,8 @@ class Submission(models.Model):
 
 
 class Announcement(models.Model):
+    school_wide = models.BooleanField('Informe da escola', default=False)
+    published = models.BooleanField('Publicado', default=True)
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='edubox_announcements')
     classrooms = models.ManyToManyField(Classroom, related_name='announcements', verbose_name='Turmas destinatárias')
     title = models.CharField('Título', max_length=180)
@@ -219,3 +244,15 @@ class AnnouncementRead(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['announcement', 'student'], name='unique_announcement_reader')]
+
+
+class TransferRecord(models.Model):
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    kind = models.CharField(max_length=20)
+    details = models.JSONField(default=dict)
+    reason = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ['-created_at', '-id']
+        verbose_name = 'Registo de transferência'
+        verbose_name_plural = 'Registos de transferências'

@@ -9,6 +9,11 @@ from .portal_views import guard, role
 from .readers import describe_file, media_url, private_response, render_page, valid_media_token
 
 
+def library_resources():
+    # Old audio records are retained for the school, but no longer exposed to readers.
+    return Resource.objects.filter(published=True).exclude(kind__in=['audio', 'audiobook']).exclude(file__iendswith='.mp3')
+
+
 def selected_grade(request: HttpRequest):
     raw = request.GET.get("grade")
     if not raw:
@@ -41,7 +46,7 @@ def subjects(request):
 
 @require_GET
 def resources(request):
-    qs = Resource.objects.filter(published=True).select_related("subject")
+    qs = library_resources().select_related("subject")
     grade = selected_grade(request)
     if grade is not None:
         qs = qs.filter(subject__grade=grade)
@@ -53,13 +58,13 @@ def resources(request):
     if subject_id:
         qs = qs.filter(subject_id=subject_id) if subject_id.isdigit() else qs.none()
     if search:
-        qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search) | Q(author__icontains=search) | Q(subject__name__icontains=search))
+        qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search) | Q(author__icontains=search) | Q(category__icontains=search) | Q(subject__name__icontains=search))
     return JsonResponse({"results": [{
         "kind": r.kind, "kind_label": r.get_kind_display(), "author": r.author, "language": r.language,
         "subject_id": r.subject_id, "created_at": r.created_at.isoformat(),
         "file_format": r.file.name.rsplit('.', 1)[-1].lower() if r.file else None,
         "id": r.id, "title": r.title, "description": r.description,
-        "subject": r.subject.name, "grade": r.subject.grade,
+        "category": r.category, "subject": r.subject.name if r.subject else "Leitura geral", "grade": r.subject.grade if r.subject else None,
         "has_file": bool(r.file), "has_text": bool(r.body), "has_external": bool(r.external_url),
         "rights_note": r.rights_note,
     } for r in qs]})
@@ -70,7 +75,7 @@ def resource_detail(request, pk):
     blocked = guard(request, {'student', 'teacher', 'admin'})
     if blocked:
         return blocked
-    item = get_object_or_404(Resource.objects.filter(published=True).select_related('subject'), pk=pk)
+    item = get_object_or_404(library_resources().select_related('subject'), pk=pk)
     info = {'id': item.id, 'title': item.title, 'body': item.body,
             'viewer_label': request.user.username, 'viewer': None}
     if item.file:
@@ -88,7 +93,7 @@ def resource_page(request, pk):
     blocked = guard(request, {'student', 'teacher', 'admin'})
     if blocked:
         return blocked
-    item = get_object_or_404(Resource.objects.filter(published=True), pk=pk)
+    item = get_object_or_404(library_resources(), pk=pk)
     if not item.file:
         return JsonResponse({'error': 'Sem ficheiro.'}, status=404)
     return render_page(item.file, request)
@@ -180,15 +185,15 @@ def resource_file(request, path):
     blocked = guard(request, {'student', 'teacher', 'admin'})
     if blocked:
         return blocked
-    item = get_object_or_404(Resource.objects.filter(published=True), file=path)
-    if not item.file.name.lower().endswith(('.mp3', '.mp4')) or not valid_media_token(item, request):
+    item = get_object_or_404(library_resources(), file=path)
+    if not item.file.name.lower().endswith('.mp4') or not valid_media_token(item, request):
         return JsonResponse({'error': 'Abre o material através do leitor da biblioteca.'}, status=403)
 
     try:
         opened = item.file.open('rb')
     except (OSError, ValueError):
         return JsonResponse({'error': 'Ficheiro indisponível.'}, status=404)
-    # Byte ranges allow seeking in local videos and audiobooks.
+    # Byte ranges allow seeking in local videos.
     import mimetypes
     import re
     from django.http import HttpResponse, StreamingHttpResponse
