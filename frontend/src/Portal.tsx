@@ -210,8 +210,8 @@ export default function Portal({onSessionChange}: {onSessionChange?: () => void}
     navigate('assignments'); setComposing(true)
   }
 
-  return <section className={`portal container ${user?.role === 'student' ? 'student-space' : user?.role === 'teacher' ? 'teacher-space' : ''}`}>
-    <div className="portal-heading"><span className="section-kicker">O TEU ESPAÇO DE APRENDIZAGEM</span><h1>{user ? `Olá, ${user.name}` : 'Bom ter-te aqui.'}</h1><p>{!user ? 'Entra para acompanhar as tuas turmas, fichas e resultados.' : user.role === 'teacher' ? 'Organiza as turmas e acompanha cada aprendizagem.' : user.role === 'student' ? 'As tuas fichas, respostas e notas, num só lugar.' : 'Tudo pronto para cuidar da tua escola.'}</p></div>
+  return <section className={`portal container ${user?.role === 'student' ? 'student-space' : user?.role === 'teacher' ? 'teacher-space' : user?.role==='admin'?'school-space':''}`}>
+    {user?.role!=='admin'&&<div className="portal-heading"><span className="section-kicker">O TEU ESPAÇO DE APRENDIZAGEM</span><h1>{user ? `Olá, ${user.name}` : 'Bom ter-te aqui.'}</h1><p>{!user ? 'Entra para acompanhar as tuas turmas, fichas e resultados.' : user.role === 'teacher' ? 'Organiza as turmas e acompanha cada aprendizagem.' : user.role === 'student' ? 'As tuas fichas, respostas e notas, num só lugar.' : 'Tudo pronto para cuidar da tua escola.'}</p></div>}
     <SaveFeedback busy={busy} error={error} success={success}/>
     {!ready ? <div className="portal-panel">A verificar a ligação...</div> : !user ?
       <form className="portal-panel portal-login" onSubmit={e => void signIn(e)}>
@@ -265,7 +265,7 @@ export default function Portal({onSessionChange}: {onSessionChange?: () => void}
             {workspace === 'classes' && showClassForm && <form className="portal-panel compose-panel" onSubmit={e => void addClass(e)}>
               <h2><Users size={21}/> Nova turma</h2>
               <label>Nome da turma<input value={className} required maxLength={100} onChange={e => setClassName(e.target.value)} placeholder="Ex.: Turma A"/></label>
-              <label>Classe<select value={classGrade} onChange={e => setClassGrade(e.target.value)}>{[8,9,10,11,12].map(g => <option key={g} value={g}>{g}.ª classe</option>)}</select></label>
+              <label>Classe<select value={classGrade} onChange={e => setClassGrade(e.target.value)}>{Array.from({length:12},(_,i)=>i+1).map(g => <option key={g} value={g}>{g}.ª classe</option>)}</select></label>
               <button className="btn btn-primary" disabled={busy}><Plus size={16}/> Criar turma</button> <button type="button" className="portal-light" onClick={() => setShowClassForm(false)}>Cancelar</button>
             </form>}
             {composing && <form className="portal-panel compose-panel" onSubmit={e => void addAssignment(e)}>

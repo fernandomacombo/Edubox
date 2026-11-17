@@ -53,7 +53,7 @@ def announcements(request):
     enrolled = set((Classroom.objects.filter(enrollments__student=request.user) if is_student else Classroom.objects.filter(teacher=request.user)).values_list('id', flat=True))
     result = [{'id': item.id, 'title': item.title, 'body': item.body,
                'author': who(item.author), 'created_at': item.created_at.isoformat(),
-               'school_wide': item.school_wide,
+               'school_wide': item.school_wide, 'has_document': bool(item.attachment) if item.school_wide else False,
                'class_names': ['Direcção da escola'] if item.school_wide else [c.name for c in item.classrooms.all() if enrolled is None or c.id in enrolled],
                'read': item.id in read_ids}
               for item in qs[:100]]

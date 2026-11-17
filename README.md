@@ -2,7 +2,7 @@
 
 Aprender na rede local da escola, mesmo sem Internet.
 
-**v0.3.7 — direcção escolar, actividades, correcções e transferências.** Biblioteca, exercícios e um espaço pessoal com turmas, fichas, respostas e notas. Django + React/TypeScript + SQLite.
+**v0.3.8 — cadastro da escola, painel de direcção e informes com documentos.** Biblioteca, exercícios e um espaço pessoal com turmas, fichas, respostas e notas. Django + React/TypeScript + SQLite.
 
 ## Já tens a instalação dos ZIPs no Windows?
 
@@ -136,3 +136,21 @@ Em trabalhos de grupo, abre **Gerir actividade, grupos e correcção**, cria gru
 O professor pode guardar a resolução como rascunho. Para publicar a correcção, encerra as entregas e avalia as respostas recebidas. Só então selecciona **Publicar a correcção para esta turma** e guarda. O servidor recusa publicação enquanto houver entregas abertas ou respostas por avaliar. Reabrir entregas exige retirar a publicação da resolução. Uma resolução já vista por alunos não pode ser tornada desconhecida por a ocultar.
 
 Mensagens visíveis indicam **A guardar…**, sucesso ou erro. Os botões bloqueiam durante o pedido. Uma gravação confirmada seguida de falha ao actualizar a lista é comunicada como gravada, sem pedir que a pessoa volte a enviar. O rascunho do aluno continua local ao separador e informa claramente que ainda não foi entregue.
+
+
+## Registar e gerir a escola (v0.3.8)
+
+O modelo é **uma escola por instalação EduBox**. O administrador existente entra em **Meu espaço → Cadastro da escola** e regista nome, localização, contactos institucionais, responsável e ano lectivo. Não existe registo público de administradores: o cadastro exige a conta de direcção criada na instalação. Uma nova gravação actualiza a mesma escola, sem criar uma segunda instituição ou alterar os dados anteriores.
+
+O painel React usa navegação lateral no computador e uma grelha compacta no telemóvel:
+
+- **Visão geral:** números reais de alunos, professores, turmas e biblioteca; alunos sem inscrição; respostas por avaliar; próximos eventos; distribuição das presenças registadas nos últimos 30 dias. Não confunde dias não preenchidos com faltas.
+- **Pessoas:** criar e editar contas de aluno/professor, definir ou repor palavra-passe e consultar estado/turmas. Palavras-passe são validadas e guardadas com hash; nunca aparecem nas respostas da API. Não permite criar superutilizadores nem alterar o perfil de uma conta existente. A desactivação de alguém com turmas/inscrições exige primeiro a transferência.
+- **Turmas e inscrições:** criação de turmas da 1.ª à 12.ª classe, escolha de professor activo, inscrição e consulta de alunos. Mudar professor ou transferir aluno continua no fluxo auditado de Transferências.
+- **Presenças:** marcação diária por turma (presente, falta, atraso ou falta justificada), carregamento das marcações existentes e resumo. Não aceita datas futuras ou alunos de outra turma. Marcações históricas permanecem guardadas após uma transferência. A operação está disponível à direcção nesta versão.
+- **Calendário:** criar/editar eventos, local e descrição, guardar rascunho ou publicar. Eventos futuros publicados aparecem na agenda do mural; rascunhos aparecem apenas à direcção.
+- **Informes:** título com texto, documento PDF ou ambos. PDF até 15 MB, leitor interno sem ligação para o original. O documento em rascunho só abre para a direcção; quando publicado pode ser consultado pela comunidade na rede local, mesmo sem sessão, tal como o texto do mural. Retirar a publicação bloqueia novos acessos ao leitor. O sino de notificações também permite abrir o documento.
+
+O nome, lema, localização e contactos institucionais identificam o mural. Os ficheiros dos informes ficam no armazenamento privado, incluído na cópia dos documentos privados usada pela instalação.
+
+Esta versão não inclui propinas, salários, contabilidade, horários de aulas, pautas oficiais ou encerramento/promoção de anos lectivos. O ano do cadastro é uma identificação do período actual, não uma separação automática dos registos por ano. Esses módulos exigem regras da escola antes de serem implementados. Ebooks continuam a usar PDF; o leitor não elimina a possibilidade de capturas de ecrã.

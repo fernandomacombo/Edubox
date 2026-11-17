@@ -22,7 +22,7 @@ def selected_grade(request: HttpRequest):
         value = int(raw)
     except ValueError:
         return -1
-    return value if 8 <= value <= 12 else -1
+    return value if 1 <= value <= 12 else -1
 
 
 @require_GET

@@ -14,7 +14,7 @@ TOKEN_MAX_AGE = 12 * 60 * 60
 
 
 def viewer_label(request):
-    return f'EduBox | @{request.user.username} | Consulta educativa'
+    return f'EduBox | @{request.user.username} | Consulta educativa' if request.user.is_authenticated else 'EduBox | Informe público da escola'
 
 
 def session_fingerprint(request):

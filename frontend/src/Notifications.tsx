@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import type {FormEvent} from 'react'
 import {Bell, Check, Megaphone, Plus, Send, X} from 'lucide-react'
+import AssignmentMaterial from './AssignmentMaterial'
 import {api} from './portalApi'
 
 type User = {username:string; name:string; role:'student'|'teacher'|'admin'}
-type Notice = {id:number; title:string; body:string; author:{name:string}; created_at:string; class_names:string[]; read:boolean}
+type Notice = {id:number; title:string; body:string; author:{name:string}; created_at:string; class_names:string[]; read:boolean;school_wide?:boolean;has_document?:boolean}
 type ClassRoom = {id:number; name:string; grade:number}
 
 export default function Notifications() {
@@ -94,7 +95,7 @@ export default function Notifications() {
         {!classes.length&&<p>Cria uma turma no teu espaço antes de publicar anúncios.</p>}
       </form>}
       <div className="notice-list">{items.length===0?<div className="empty"><Megaphone size={30}/><p>Ainda não há anúncios.</p></div>:items.map(n=><article className={`notice ${n.read?'':'unread'}`} key={n.id}>
-        <small>{n.class_names.join(' · ')}{!n.read&&<b> · Novo</b>}</small><h3>{n.title}</h3><p>{n.body}</p>
+        <small>{n.class_names.join(' · ')}{!n.read&&<b> · Novo</b>}</small><h3>{n.title}</h3><p>{n.body}</p>{n.school_wide&&n.has_document&&<AssignmentMaterial endpoint={`/api/school/notices/${n.id}/reader/`} label="Ler documento do informe"/>}
         <small>{n.author.name} · {new Date(n.created_at).toLocaleString('pt-PT')}</small>
         {!n.read&&<button className="text-button" disabled={busy} onClick={()=>void markRead(n.id)}><Check size={15}/> Marcar como lido</button>}
       </article>)}</div>

@@ -1,7 +1,15 @@
 from django.urls import path
-from . import views, portal_views, announcement_views, school_views
+from . import views, portal_views, announcement_views, school_views, school_management
 
 urlpatterns = [
+    path('school/profile/', school_management.profile),
+    path('school/people/', school_management.people),
+    path('school/classes/', school_management.classes),
+    path('school/attendance/', school_management.attendance),
+    path('school/calendar/', school_management.calendar),
+    path('school/summary/', school_management.summary),
+    path('school/notices/<int:pk>/reader/', school_views.notice_reader),
+    path('school/notices/<int:pk>/pages/', school_views.notice_page),
     path('school/bulletin/', school_views.bulletin),
     path('school/notices/', school_views.notices),
     path('school/library/', school_views.library),

@@ -78,3 +78,19 @@ Percurso de aceitação na escola:
 4. Criar trabalho em grupo, atribuir dois membros, entregar com um deles e verificar resposta/nota no outro.
 5. Transferir uma turma para outro professor e confirmar os acessos nas duas contas. Transferir um aluno entre turmas e confirmar o histórico sem acesso a novas tarefas da origem.
 6. Confirmar **A guardar…** e mensagem de sucesso ao guardar nota, actividade, grupo, informe e material. Simular perda de ligação e confirmar que não aparece um falso sucesso.
+
+
+## v0.3.8 — cadastro, gestão e documentos oficiais
+
+- 71 testes Django e 38 testes React, além dos 3 testes do importador (112 no total); compilação TypeScript/Vite.
+- Cadastro único por instalação e gravação exclusiva pela direcção; informação interna não exposta no cadastro público.
+- Contas: palavras-passe com hash, validação de força, permissões e impossibilidade de elevar privilégios pela API. Edição sem palavra-passe preserva a actual; transferência obrigatória antes de desactivar contas com inscrições/turmas.
+- Turmas primárias e secundárias (1 a 12), inscrição administrativa e recusa de responsável sem perfil Professor.
+- Presenças únicas por turma/aluno/dia; actualização sem duplicar, recusa de data futura e aluno não inscrito; histórico conservado após transferência.
+- Calendário: rascunhos privados, eventos publicados no mural, resumo com dados reais.
+- Informes PDF: título/documento sem texto aceite; validação de PDF; rascunhos bloqueados para visitantes e professores; páginas de documento publicado acessíveis, original inacessível, retirada de publicação revoga o leitor. Remover o único conteúdo é recusado.
+- Interface: cadastro e feedback de gravação, criação de contas, limpeza de palavra-passe após sucesso, presenças sem duplo envio, calendário, navegação da visão geral e informe enviado como multipart e aberto pelo leitor protegido.
+- Simulação em SQLite temporário desde v0.3.7: entregas, notas, resolução, biblioteca sem classe, informes, inscrições e registos de transferência preservados. Cadastro começa vazio e nenhum dado fictício de escola é introduzido.
+- Chromium não conseguiu iniciar devido à restrição de sockets do ambiente; a disposição visual em Windows e telemóvel ainda precisa de confirmação na instalação real.
+
+Aceitação em Windows: actualizar, ligar servidores, entrar como administrador, registar a escola, criar uma conta de teste, inscrever numa turma, guardar uma presença, publicar um evento e um informe PDF. Confirmar que o mural mostra a identidade da escola, o evento e o documento, e que um informe em rascunho permanece privado.
