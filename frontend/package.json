@@ -1,13 +1,13 @@
 {
   "name": "edubox-frontend",
   "private": true,
-  "version": "0.3.5",
+  "version": "0.3.6",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "vitest run"
+    "test": "vitest run --maxWorkers=2 --testTimeout=15000"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.0",

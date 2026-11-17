@@ -1,37 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import AssignmentMaterial from './AssignmentMaterial'
 import StudentReply, { clearStudentDrafts } from './StudentReply'
 import { BookOpen, CheckCircle2, ExternalLink, GraduationCap, LockKeyhole, LogOut, Plus, Send, Users, ArrowLeft, FileText, Clock3, Search, ArrowRight, RefreshCw } from 'lucide-react'
 
-type Person = { username: string; name: string }
-type Profile = Person & { role: 'admin' | 'teacher' | 'student' }
+import {api} from './portalApi'
+import type {Person,Profile} from './portalApi'
 type ClassRoom = { id: number; name: string; grade: number; teacher: Person; student_count: number; students?: Person[] }
 type Material = { id: number; title: string; grade: number; subject: string }
-type Assignment = { response_count?: number; pending_count?: number; id: number; title: string; created_at: string; attachment_url: string | null; instructions: string; class_id: number; class_name: string; grade: number; resource: { title: string; file_url: string | null; body: string; external_url: string } | null; my_answer: { answer: string; score: number | null; feedback: string } | null }
+type Assignment = { response_count?: number; pending_count?: number; id: number; title: string; created_at: string; attachment_url: string | null; instructions: string; class_id: number; class_name: string; grade: number; resource: { id: number; title: string; file_url: string | null; body: string; external_url: string } | null; my_answer: { answer: string; score: number | null; feedback: string } | null }
 type Answer = { id: number; student: Person; answer: string; score: number | null; feedback: string }
 
-async function api<T>(path: string, body?: object | FormData, expectedUsername?: string): Promise<T> {
-  if (body !== undefined) {
-    const verify = await fetch('/api/portal/session/', { credentials: 'same-origin' })
-    if (!verify.ok) throw new Error('Não foi possível confirmar a sessão.')
-    if (expectedUsername) {
-      const session = await verify.json() as {user: Profile | null}
-      if (session.user?.username !== expectedUsername || session.user.role !== 'student') {
-        throw new Error('A sessão mudou. Volta a entrar na tua conta antes de entregar.')
-      }
-    }
-  }
-  const token = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)?.[1] || ''
-  const multipart = body instanceof FormData
-  const res = await fetch(path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin',
-    headers: body === undefined ? {} : multipart ? { 'X-CSRFToken': decodeURIComponent(token) } : { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(token) },
-    body: body === undefined ? undefined : multipart ? body : JSON.stringify(body) })
-  const result = await res.json().catch(() => ({})) as { error?: string }
-  if (!res.ok) throw new Error(result.error || `Erro ${res.status}. Verifica o servidor Django.`)
-  return result as T
-}
-
-export default function Portal() {
+export default function Portal({onSessionChange}: {onSessionChange?: () => void}) {
   const actionLock = useRef(false)
   const responseRequest = useRef(0)
   const [selectedTask, setSelectedTask] = useState<number | null>(null)
@@ -101,12 +81,13 @@ export default function Portal() {
     e.preventDefault()
     await act(async () => {
       const result = await api<{user: Profile}>('/api/portal/login/', { username: login, password })
-      setUser(result.user); setPassword(''); await refresh()
+      setUser(result.user); setPassword(''); onSessionChange?.(); await refresh()
     }, 'Sessão iniciada.')
   }
   async function signOut() {
     await act(async () => {
       await api('/api/portal/logout/', {})
+      onSessionChange?.()
       responseRequest.current += 1
       setUser(null); setClasses([]); setAssignments([]); setMaterials([])
       setSelectedTask(null); setSelectedClass(null); setTeacherPending(false); setQuery(''); setClassFilter(''); clearStudentDrafts(); setResponses([]); setScores({}); setFeedback({}); setOpened(null)
@@ -232,7 +213,7 @@ export default function Portal() {
       </form> : <>
         <div className="portal-user"><div className="identity"><span className="avatar" aria-hidden="true">{user.name.slice(0,1).toUpperCase()}</span><div><strong>{user.name}</strong><small>{user.role === 'teacher' ? 'Professor' : user.role === 'student' ? 'Aluno' : 'Administrador'} · @{user.username}</small></div></div><button onClick={() => void signOut()} disabled={busy} className="portal-light"><LogOut size={16}/> Sair</button></div>
         {user.role === 'student' && selectedTask === null && <details className="portal-panel student-help"><summary>Como funciona o meu espaço?</summary>
-          <ol><li><b>Por fazer:</b> lê a ficha e escreve ao teu ritmo. Podes rever a resposta antes de entregar.</li><li><b>A aguardar avaliação:</b> a resposta já chegou ao professor. Não precisas de a enviar outra vez.</li><li><b>Avaliadas:</b> consulta a nota e o comentário para perceberes o que podes melhorar.</li></ol>
+          <ol><li><b>Por fazer:</b> lê a ficha e escreve ao teu ritmo. Podes rever a resposta antes de continuar.</li><li><b>A aguardar avaliação:</b> a resposta já chegou ao professor. Não precisas de a enviar outra vez.</li><li><b>Avaliadas:</b> consulta a nota e o comentário para perceberes o que podes melhorar.</li></ol>
           <p>As tuas respostas e notas podem ser consultadas por ti, pelo professor responsável e pelo administrador da escola. Os colegas não têm acesso a elas.</p>
           <p>Tens dúvidas sobre a ficha ou precisas de ajuda? Fala com o teu professor. Se esta área estiver vazia, pede-lhe que confirme a tua inscrição na turma.</p>
           <p>Não precisas de Internet para responder, mas mantém a ligação ao Wi-Fi da EduBox para entregar.</p>
@@ -343,10 +324,8 @@ export default function Portal() {
           </button>)}</div> : visibleAssignments.length === 0 && selectedTask === null ? <div className="empty"><FileText size={32}/><p>{query || classFilter ? 'Nenhuma ficha encontrada.' : user.role === 'teacher' ? teacherPending ? 'Não há respostas por avaliar.' : 'Vamos criar a primeira ficha?' : filter === 'pending' ? 'Tudo em dia!' : 'Ainda não há fichas aqui.'}</p><small>{query || classFilter ? 'Experimenta outra pesquisa ou turma.' : user.role === 'teacher' ? teacherPending ? 'As novas respostas dos alunos aparecerão aqui.' : 'Usa o botão «Nova ficha» para começar.' : 'As fichas publicadas pelo professor aparecem neste espaço.'}</small></div> : assignments.filter(a => a.id === selectedTask).map(a => <div className="portal-entry" key={a.id}>
             <div className="portal-title"><div><b>{a.title}</b><small>{a.class_name} · {a.grade}.ª classe · {new Date(a.created_at).toLocaleDateString('pt-PT')}</small></div>{a.my_answer && <span className="portal-status"><CheckCircle2 size={15}/> {a.my_answer.score === null ? 'Entregue' : `Avaliada · ${a.my_answer.score}/20`}</span>}{user.role === 'student' && !a.my_answer && <span className="portal-status pending"><Clock3 size={15}/> Por fazer</span>}</div>
             <p className="portal-text">{a.instructions}</p>
-            {a.attachment_url && <p className="portal-material"><BookOpen size={16}/><a href={a.attachment_url} target="_blank" rel="noreferrer">Abrir PDF desta ficha <ExternalLink size={13}/></a></p>}
-            {a.resource && <p className="portal-material"><BookOpen size={16}/>{a.resource.file_url ? <a href={a.resource.file_url} target="_blank" rel="noreferrer">{a.resource.title} <ExternalLink size={13}/></a> : a.resource.title}</p>}
-            {a.resource?.body && <details><summary>Ler material da biblioteca</summary><p className="portal-text">{a.resource.body}</p></details>}
-            {a.resource?.external_url && <p><a href={a.resource.external_url} target="_blank" rel="noreferrer">Abrir ligação online (requer Internet)</a></p>}
+            {a.attachment_url && <AssignmentMaterial key={`pdf:${a.id}`} endpoint={`/api/portal/assignments/${a.id}/reader/`} label="Ler PDF desta ficha"/>}
+            {a.resource && <AssignmentMaterial key={`resource:${a.resource.id}`} endpoint={`/api/resources/${a.resource.id}/`} label={`Consultar ${a.resource.title}`}/>}
             {user.role === 'student' ? (a.my_answer ? <div className="portal-reply"><b>A tua resposta</b><p className="portal-text">{a.my_answer.answer}</p><small>{a.my_answer.score === null ? 'A aguardar correcção' : `Nota: ${a.my_answer.score}/20`}</small>{a.my_answer.feedback && <p>Comentário: {a.my_answer.feedback}</p>}</div> : <StudentReply key={`${user.username}:${a.id}`} username={user.username} assignmentId={a.id} title={a.title} submit={answer => sendAnswer(a.id, answer)}/>) : <><button className="portal-light" onClick={() => void toggleResponses(a.id)}>{opened === a.id ? 'Fechar respostas' : 'Ver respostas'}</button>{opened === a.id && <div className="portal-responses">{!responseLoading && <p className="portal-hint">{responses.length} resposta(s) · {responses.filter(r => r.score === null).length} por avaliar</p>}{!responseLoading && <details className="missing-students"><summary>Quem ainda não entregou?</summary><p>{classes.find(c => c.id === a.class_id)?.students?.filter(s => !responses.some(r => r.student.username === s.username)).map(s => s.name).join(', ') || (classes.find(c => c.id === a.class_id)?.student_count ? 'Todos os alunos inscritos já entregaram.' : 'Esta turma ainda não tem alunos.')}</p></details>}{responseLoading ? <p role="status">A carregar respostas…</p> : responses.length === 0 ? <p>Os alunos ainda não entregaram.</p> : responses.map(r => <div className="portal-reply" key={r.id}><b>{r.student.name} (@{r.student.username})</b><span className="review-status">{r.score === null ? 'Por avaliar' : `Avaliada · ${r.score}/20`}</span><p className="portal-text">{r.answer}</p><div className="portal-review"><label>Nota (0–20)<input type="number" step="1" min="0" max="20" value={scores[r.id] ?? ''} onChange={e => setScores(old => ({...old,[r.id]:e.target.value}))}/></label><label>Comentário<input maxLength={2000} value={feedback[r.id] ?? ''} onChange={e => setFeedback(old => ({...old,[r.id]:e.target.value}))}/></label><button className="btn btn-primary" disabled={busy || !/^\d+$/.test(scores[r.id] ?? '') || Number(scores[r.id])>20} onClick={() => void gradeAnswer(r.id,a.id)}>Guardar nota</button></div></div>)}</div>}</>}
           </div>)}
         </div>}

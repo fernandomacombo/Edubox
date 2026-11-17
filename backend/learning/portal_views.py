@@ -1,12 +1,12 @@
 import json
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.core.exceptions import ValidationError
-from django.http import FileResponse
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
+from .readers import describe_file, private_response, render_page
 from .models import Classroom, Enrollment, Assignment, Submission, Resource, MAX_ASSIGNMENT_PDF_SIZE, validate_assignment_pdf
 
 
@@ -107,7 +107,7 @@ def assignment_dict(item,user):
     resource=item.resource
     result = {'id':item.id,'title':item.title,'instructions':item.instructions,'class_id':item.classroom_id,'class_name':item.classroom.name,
             'grade':item.classroom.grade,'created_at':item.created_at.isoformat(),
-            'attachment_url':f'/api/portal/assignments/{item.pk}/file/' if item.attachment else None,'resource':{'title':resource.title,'file_url':resource.file.url if resource.file else None, 'body':resource.body, 'external_url':resource.external_url} if resource and resource.published else None,
+            'attachment_url':f'/api/portal/assignments/{item.pk}/file/' if item.attachment else None,'resource':{'id':resource.id,'title':resource.title,'file_url':None, 'body':'', 'external_url':''} if resource and resource.published else None,
             'my_answer':{'answer':mine.answer,'score':mine.score,'feedback':mine.feedback} if mine else None}
     if role(user) in {'teacher', 'admin'}:
         submissions = list(item.submissions.all())
@@ -178,15 +178,34 @@ def assignment_file(request, pk):
     item = get_object_or_404(visible_assignments(request), pk=pk)
     if not item.attachment:
         return err('Este trabalho nao possui um PDF.', 404)
+    return err('Abre o PDF no leitor da ficha. A descarga do original não está disponível.', 403)
+
+
+@require_GET
+def assignment_reader(request, pk):
+    blocked = guard(request, {'teacher', 'student', 'admin'})
+    if blocked:
+        return blocked
+    item = get_object_or_404(visible_assignments(request), pk=pk)
+    if not item.attachment:
+        return err('Esta ficha não tem PDF.', 404)
     try:
-        opened = item.attachment.open('rb')
-    except (OSError, ValueError):
-        return err('O ficheiro nao esta disponivel no servidor local.', 404)
-    response = FileResponse(opened, content_type='application/pdf', as_attachment=False,
-                            filename=item.attachment.name.rsplit('/', 1)[-1])
-    response['Cache-Control'] = 'private, no-store'
-    response['Content-Security-Policy'] = "sandbox"
-    return response
+        info = describe_file(item.attachment, f'/api/portal/assignments/{pk}/pages/', request)
+    except Exception:
+        return err('Não foi possível abrir o PDF. Pede ao professor que verifique o ficheiro.', 422)
+    return private_response(JsonResponse({'title': item.title, 'viewer': info}))
+
+
+@require_GET
+def assignment_page(request, pk):
+    blocked = guard(request, {'teacher', 'student', 'admin'})
+    if blocked:
+        return blocked
+    item = get_object_or_404(visible_assignments(request), pk=pk)
+    if not item.attachment:
+        return err('Esta ficha não tem PDF.', 404)
+    return render_page(item.attachment, request)
+
 
 @require_POST
 def submit(request,pk):

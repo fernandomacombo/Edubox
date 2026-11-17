@@ -1,7 +1,13 @@
 from django.urls import path
-from . import views, portal_views
+from . import views, portal_views, announcement_views
 
 urlpatterns = [
+    path('resources/<int:pk>/', views.resource_detail, name='resource_detail'),
+    path('resources/<int:pk>/pages/', views.resource_page, name='resource_page'),
+    path('portal/assignments/<int:pk>/reader/', portal_views.assignment_reader, name='assignment_reader'),
+    path('portal/assignments/<int:pk>/pages/', portal_views.assignment_page, name='assignment_page'),
+    path('portal/announcements/', announcement_views.announcements, name='announcements'),
+    path('portal/announcements/<int:pk>/read/', announcement_views.mark_read, name='announcement_read'),
     path('portal/session/', portal_views.session, name='portal_session'),
     path('portal/login/', portal_views.sign_in, name='portal_login'),
     path('portal/logout/', portal_views.sign_out, name='portal_logout'),

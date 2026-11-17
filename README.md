@@ -2,7 +2,7 @@
 
 Aprender na rede local da escola, mesmo sem Internet.
 
-**v0.3.5 — turmas abertas, ensino acompanhado.** Biblioteca, exercícios e um espaço pessoal com turmas, fichas, respostas e notas. Django + React/TypeScript + SQLite.
+**v0.3.6 — biblioteca organizada, turmas privadas e notificações.** Biblioteca, exercícios e um espaço pessoal com turmas, fichas, respostas e notas. Django + React/TypeScript + SQLite.
 
 ## Já tens a instalação dos ZIPs no Windows?
 
@@ -53,8 +53,8 @@ Se aparecer `ENOSPC`, falta espaço no disco; não repitas instalações nem apa
 
 ## Interface
 
-- **Biblioteca:** pesquisa e filtros por classe, leitura de texto e abertura de documentos.
-- **Exercícios:** perguntas com correcção local.
+- **Biblioteca:** livros, pesquisas, vídeos, audiolivros, áudios, documentos, imagens e outros materiais. Pesquisa por título/autor, filtros por classe, disciplina, tipo e disponibilidade. O catálogo é visível na rede; a leitura exige uma conta da escola e permite consultar materiais de diferentes classes.
+- **Exercícios:** perguntas com correcção local, acessíveis apenas às turmas explicitamente autorizadas. A inscrição numa turma não dá acesso às outras turmas da mesma classe.
 - **Meu espaço / professor:** painel visual com turmas que abrem para fichas, alunos e avaliações. Contadores de inscrições, fichas, entregas e respostas por avaliar; pesquisa de alunos e fichas, inscrição na turma e nova ficha com a turma pré-seleccionada. A fila de avaliações abre directamente as respostas e actualiza os totais ao guardar a nota. Cada ficha mostra também quem ainda não entregou.
 - **Meu espaço / aluno:** pesquisa de fichas e filtro por turma combináveis com o estado da entrega; painel visual com fichas compactas, progresso de entregas e abertura de uma tarefa de cada vez; filtros Todas, Por fazer, A aguardar avaliação e Avaliadas, com notas e comentários.
 - **Responder com calma:** rascunho automático no separador, revisão antes da entrega e confirmação explícita. Uma falha de envio mantém o texto para tentar novamente.
@@ -92,6 +92,26 @@ Bases SQLite, documentos, backups, `.env`, dependências e caches não entram no
 
 ## Limites
 
-MVP para uma rede local de confiança, com servidores de desenvolvimento. Não é uma implantação pública na Internet. A biblioteca publicada é pública nessa rede; PDFs das fichas são privados e servidos com verificação de permissões.
+MVP para uma rede local de confiança, com servidores de desenvolvimento. Não é uma implantação pública na Internet. O catálogo da biblioteca é visível nessa rede; conteúdos completos exigem sessão. Fichas, respostas, exercícios e anúncios verificam a turma no servidor. Os PDFs originais não são servidos ao leitor: cada página é renderizada com identificação da conta.
 
 A validação automática não substitui confirmar a instalação real em Windows e telemóvel. Ver `VALIDACAO.md`.
+
+## Organizar a biblioteca e autorizar exercícios (v0.3.6)
+
+Na administração, em **Materiais didácticos**, escolhe o tipo de material, disciplina/classe, autor, idioma e descrição. Carrega o ficheiro local (PDF, MP4, MP3 ou imagem, até 80 MB), indica a origem/licença e publica. Os materiais já existentes ficam em «Outros materiais» até serem classificados. Trabalhos e respostas de alunos não são promovidos automaticamente à biblioteca.
+
+Em **Testes**, o administrador selecciona **Turmas autorizadas** da classe correspondente. Exercícios antigos sem turmas permanecem guardados, mas não ficam visíveis aos alunos até receberem essa atribuição. Fichas publicadas no portal já pertencem a uma turma e mantêm o seu acesso.
+
+## Anúncios e notificações
+
+O professor abre o sino **Avisos → Novo anúncio** e escolhe uma turma ou «Todas as minhas turmas». O aluno vê o contador de avisos não lidos e pode marcar cada mensagem como lida. O sino aparece também durante a consulta da biblioteca. A lista actualiza a cada 30 segundos enquanto a aplicação está aberta e ligada à rede EduBox; não é uma notificação do sistema operativo com a aplicação fechada.
+
+## Consulta de materiais e limites da protecção
+
+- PDFs e imagens: leitor interno, páginas identificadas com a conta do leitor, sem disponibilizar o ficheiro original.
+- Áudio e vídeo: reprodução local com ligações temporárias associadas à conta e à sessão; controlos de descarga ocultos onde o navegador suporta.
+- Ficheiros antigos em `/media/` deixam de poder ser abertos directamente. Links externos ficam conservados na administração, mas não são oferecidos como alternativa para contornar o leitor; materiais apenas online devem receber uma versão local autorizada para leitura interna.
+- Não há botões de descarga ou impressão no leitor. Isto **não é DRM absoluto**: capturas de ecrã, gravação de áudio/vídeo e cópia por um utilizador autorizado com ferramentas técnicas continuam possíveis.
+- A instalação inicial/actualização necessita de Internet para instalar também PDFium e Pillow; a leitura e as notificações usam a rede local, sem serviços externos.
+
+A actualização gera migrações aditivas sobre o histórico local existente, com o backup compacto já previsto pelo actualizador. A simulação de passagem da v0.3.5 preservou contas, turma, inscrição, ficha, resposta, nota e material. Não se distribuem migrações numeradas para não colidir com as instalações ZIP anteriores.
