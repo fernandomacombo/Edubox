@@ -10,6 +10,14 @@ class PublicApiTests(TestCase):
         self.question = Question.objects.create(quiz=self.quiz, prompt="2+2 = ?")
         self.right = Choice.objects.create(question=self.question, text="4", correct=True)
         self.wrong = Choice.objects.create(question=self.question, text="5", correct=False)
+        self.student = User.objects.create_user('practice_student')
+        self.student.groups.add(Group.objects.get_or_create(name='Aluno')[0])
+        teacher = User.objects.create_user('practice_teacher')
+        classroom = Classroom.objects.create(name='8A', grade=8, teacher=teacher)
+        Enrollment.objects.create(classroom=classroom, student=self.student)
+        self.quiz.classrooms.add(classroom)
+        self.client.force_login(self.student)
+
 
     def test_subject_filter(self):
         self.assertEqual(len(self.client.get('/api/subjects/?grade=8').json()['results']), 1)
@@ -150,16 +158,9 @@ class AssignmentPdfTests(PdfFixtures, TestCase):
         self.assertTrue(item.attachment.name.endswith('.pdf'))
         url = created.json()['attachment_url']
         self.assertTrue(url.endswith('/file/'))
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'application/pdf')
-        self.assertEqual(b''.join(response.streaming_content), b'%PDF-1.7\n1 0 obj\n%%EOF')
-        response.close()
-
+        self.assertEqual(self.client.get(url).status_code, 403)
         self.client.force_login(self.student)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        response.close()
+        self.assertEqual(self.client.get(url).status_code, 403)
         self.client.force_login(self.outsider)
         self.assertEqual(self.client.get(url).status_code, 404)
         self.client.force_login(self.other)
@@ -231,7 +232,7 @@ class ReleaseRegressionTests(PdfFixtures, TestCase):
         data = {'class_id': self.cls.pk, 'title': 'Ficha', 'instructions': 'Ler', 'resource_id': resource.pk}
         self.assertEqual(self.send('/api/portal/assignments/', data).status_code, 400)
         subject.grade = 10; subject.save()
-        self.assertEqual(self.send('/api/portal/assignments/', data).json()['resource']['body'], 'Ler')
+        self.assertEqual(self.send('/api/portal/assignments/', data).json()['resource']['id'], resource.pk)
         resource.published = False; resource.save()
         self.assertEqual(self.send('/api/portal/assignments/', data).status_code, 400)
 
@@ -245,7 +246,7 @@ class ReleaseRegressionTests(PdfFixtures, TestCase):
         admin = User.objects.create_superuser('admin', password='Secret123!')
         self.client.force_login(admin)
         response = self.client.get(result['attachment_url'])
-        self.assertEqual(response.status_code, 200); response.close()
+        self.assertEqual(response.status_code, 403); response.close()
         self.assertEqual(self.client.get('/media/' + item.attachment.name).status_code, 404)
 
     def test_missing_pdf_and_revoked_enrollment(self):
@@ -257,7 +258,7 @@ class ReleaseRegressionTests(PdfFixtures, TestCase):
         self.client.force_login(self.teacher)
         item = Assignment.objects.get(pk=result['id'])
         item.attachment.storage.delete(item.attachment.name)
-        self.assertEqual(self.client.get(result['attachment_url']).status_code, 404)
+        self.assertEqual(self.client.get(result['attachment_url']).status_code, 403)
 
     def test_staff_teacher_cannot_bypass_portal(self):
         from django.contrib.auth.models import Permission
@@ -288,8 +289,9 @@ class ReleaseRegressionTests(PdfFixtures, TestCase):
         with override_settings(MEDIA_ROOT=self.temp_files.name):
             resource = Resource.objects.create(subject=subject, title='PDF', file=SimpleUploadedFile('book.pdf', b'%PDF-1.7'))
             url = resource.file.url
-            response = self.client.get(url)
-            self.assertEqual(response.status_code, 200); response.close()
+            self.assertEqual(self.client.get(url).status_code, 401)
+            self.client.force_login(self.student)
+            self.assertEqual(self.client.get(url).status_code, 403)
             resource.published = False; resource.save()
             self.assertEqual(self.client.get(url).status_code, 404)
 

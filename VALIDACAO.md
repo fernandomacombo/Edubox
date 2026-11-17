@@ -42,3 +42,19 @@
 - Confirmar também na instalação Windows e no telemóvel ligado à rede local, sem acesso à Internet.
 
 Validação de desenvolvimento: 30 testes Django, 18 testes frontend, 3 testes do importador e compilação TypeScript/Vite. Nenhuma alteração de modelo ou migração incluída. A captura automatizada do navegador ficou bloqueada pelo ambiente de execução (socket do Chromium); a validação visual real e o teste offline em Windows continuam pendentes.
+
+## v0.3.6 — biblioteca, isolamento e notificações
+
+Validação automatizada: 44 testes Django, 25 testes frontend, 3 testes do importador; compilação TypeScript/Vite e auditoria npm. Simulação real de migração aditiva desde o esquema v0.3.5 com preservação de contas, turma, inscrição, ficha, resposta, nota e material.
+
+Percurso para confirmar no Windows:
+
+1. Aluno inscrito apenas na 8A: não vê fichas nem exercícios da 8B ou 9A. Links directos e envio de respostas para outra turma são recusados.
+2. O mesmo aluno pode consultar materiais publicados de 9.ª classe na biblioteca após iniciar sessão; o catálogo não fornece o texto completo nem os endereços dos ficheiros.
+3. Abrir um PDF no leitor, mudar de página e confirmar a identificação do leitor. O PDF original não abre por `/media/` nem pelo antigo endereço de descarga da ficha.
+4. Reproduzir áudio/vídeo local e avançar na reprodução; tentar a ligação de reprodução noutra sessão deve ser recusado.
+5. Professor publica anúncio para uma turma; só os seus inscritos recebem o aviso. «Todas as minhas turmas» não inclui turmas de outro professor.
+6. Aluno marca aviso como lido; a marca mantém-se depois de sair e voltar. Sem ligação ao servidor, o painel informa a falha de actualização.
+7. Confirmar categorias, filtros, leitor e sino no computador e telemóvel da mesma rede, sem Internet.
+
+A pré-visualização por navegador remoto não alcançou o servidor local (ligação recusada). A validação visual real em Windows/telemóvel continua necessária. A protecção de leitura reduz a descarga directa e bloqueia acessos não autorizados; não impede capturas de ecrã ou gravação da reprodução.

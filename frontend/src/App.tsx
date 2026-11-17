@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Portal from './Portal'
+import Library from './Library'
+import type {LibraryResource} from './Library'
+import Notifications from './Notifications'
 import {
   ArrowLeft, ArrowRight, BookOpen, ChevronRight, ClipboardCheck,
-  Download, ExternalLink, FileText, LockKeyhole,
-  RadioTower, RefreshCw, Search, X
+  LockKeyhole,
+  RadioTower, RefreshCw, Search
 } from 'lucide-react'
 
-type Subject = { id: number; name: string; grade: number; description: string; material_count: number; quiz_count: number }
-type Resource = { id: number; title: string; description: string; subject: string; grade: number; file_url: string | null; external_url: string | null; body: string; rights_note: string }
+type Subject = { id: number; name: string; grade: number; description: string; material_count: number; quiz_count?: number }
+type Resource = LibraryResource
 type Quiz = { id: number; title: string; subject: string; grade: number; question_count: number }
 type QuizDetail = { id: number; title: string; questions: { id: number; prompt: string; choices: { id: number; text: string }[] }[] }
 type Result = { score: number; total: number; corrections: { question_id: number; correct: boolean; correct_choice_id: number | null; correct_text: string }[] }
@@ -20,6 +23,9 @@ async function getJSON<T>(path: string): Promise<T> {
 }
 
 function App() {
+  const catalogRequest=useRef(0)
+  const quizRequest=useRef(0)
+  const [quizGrades,setQuizGrades]=useState<number[]>([])
   const [grade, setGrade] = useState<number | 'all'>('all')
   const [tab, setTab] = useState<Tab>('biblioteca')
   const [search, setSearch] = useState('')
@@ -28,7 +34,8 @@ function App() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [status, setStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading')
   const [loading, setLoading] = useState(true)
-  const [lesson, setLesson] = useState<Resource | null>(null)
+  const [loginRequired, setLoginRequired] = useState(false)
+  const [sessionVersion, setSessionVersion] = useState(0)
   const [activeQuiz, setActiveQuiz] = useState<QuizDetail | null>(null)
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [result, setResult] = useState<Result | null>(null)
@@ -37,45 +44,54 @@ function App() {
   const gradeParam = grade === 'all' ? '' : `?grade=${grade}`
 
   async function refresh() {
+    const seq=++catalogRequest.current
     setLoading(true)
     try {
       await getJSON('/api/health/')
       const [s, r, q] = await Promise.all([
         getJSON<{results: Subject[]}>(`/api/subjects/${gradeParam}`),
         getJSON<{results: Resource[]}>(`/api/resources/${gradeParam}`),
-        getJSON<{results: Quiz[]}>(`/api/quizzes/${gradeParam}`),
+        getJSON<{results: Quiz[]; login_required?: boolean; grades?:number[]}>(`/api/quizzes/${gradeParam}`),
       ])
+      if(seq!==catalogRequest.current)return
       setSubjects(s.results)
       setResources(r.results)
       setQuizzes(q.results)
+      setLoginRequired(Boolean(q.login_required))
+      setQuizGrades(q.grades||[])
       setStatus('connected')
       setError('')
     } catch (e) {
+      if(seq!==catalogRequest.current)return
+      setQuizzes([])
       setStatus('disconnected')
       setError(e instanceof Error ? e.message : 'Erro ao contactar servidor.')
     } finally {
-      setLoading(false)
+      if(seq===catalogRequest.current)setLoading(false)
     }
   }
 
-  useEffect(() => { void refresh() }, [grade])
+  useEffect(() => { void refresh() }, [grade, tab, sessionVersion])
 
-  const visibleResources = useMemo(() => resources.filter(r => `${r.title} ${r.subject} ${r.description}`.toLowerCase().includes(search.toLowerCase())), [resources, search])
+
   const visibleQuizzes = useMemo(() => quizzes.filter(q => `${q.title} ${q.subject}`.toLowerCase().includes(search.toLowerCase())), [quizzes, search])
 
   async function openQuiz(id: number) {
+    const seq=++quizRequest.current
     setError('')
     try {
       const quiz = await getJSON<QuizDetail>(`/api/quizzes/${id}/`)
+      if(seq!==quizRequest.current)return
       setActiveQuiz(quiz)
       setAnswers({})
       setResult(null)
       window.scrollTo({ top: 0, behavior: 'smooth' })
-    } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao carregar teste.') }
+    } catch (e) { if(seq===quizRequest.current)setError(e instanceof Error ? e.message : 'Erro ao carregar teste.') }
   }
 
   async function submit() {
     if (!activeQuiz || submitting) return
+    const seq=quizRequest.current
     setSubmitting(true)
     setError('')
     try {
@@ -87,12 +103,13 @@ function App() {
         body: JSON.stringify({ answers }),
       })
       if (!response.ok) throw new Error('Não foi possível corrigir o teste. Tenta novamente.')
-      setResult(await response.json() as Result)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao corrigir teste.') }
+      const graded=await response.json() as Result
+      if(seq===quizRequest.current)setResult(graded)
+    } catch (e) { if(seq===quizRequest.current)setError(e instanceof Error ? e.message : 'Erro ao corrigir teste.') }
     finally { setSubmitting(false) }
   }
 
-  function chooseTab(next: Tab) { setTab(next); setActiveQuiz(null); setResult(null); setError('') }
+  function chooseTab(next: Tab) { quizRequest.current+=1; if(next===tab){setActiveQuiz(null);setResult(null);setError('');void refresh();return} catalogRequest.current+=1; if(next==='testes')setGrade('all'); setQuizzes([]); setTab(next); setActiveQuiz(null); setResult(null); setError('') }
 
   return (
     <div className="app">
@@ -108,6 +125,7 @@ function App() {
             <button aria-current={tab === 'testes' ? 'page' : undefined} className={tab === 'testes' ? 'nav-link selected' : 'nav-link'} onClick={() => chooseTab('testes')}><ClipboardCheck size={18}/> Exercícios</button>
             <button aria-current={tab === 'portal' ? 'page' : undefined} className={tab === 'portal' ? 'nav-link selected' : 'nav-link'} onClick={() => chooseTab('portal')}><LockKeyhole size={16}/> Meu espaço</button>
           </nav>
+          <Notifications key={sessionVersion}/>
         </div>
       </header>
 
@@ -116,6 +134,7 @@ function App() {
           <div className="container quiz-page">
             <button className="back" onClick={() => { setActiveQuiz(null); setResult(null) }}><ArrowLeft size={17}/> Voltar aos exercícios</button>
             <div className="quiz-sheet">
+              {error && <div className="error-box" role="alert">{error}</div>}
               <div className="tag small-tag"><ClipboardCheck size={14}/> EXERCÍCIO INTERACTIVO</div>
               <h1>{activeQuiz.title}</h1>
               <p>Escolhe uma resposta por pergunta. A correcção acontece dentro da EduBox, sem precisar da Internet.</p>
@@ -139,29 +158,26 @@ function App() {
                 : <button className="btn btn-primary" disabled={submitting || activeQuiz.questions.length === 0 || Object.keys(answers).length !== activeQuiz.questions.length} onClick={() => void submit()}>{submitting ? 'A corrigir…' : 'Corrigir as respostas'} <ArrowRight size={17}/></button>}
             </div>
           </div>
-        ) : tab === 'portal' ? <Portal/> : <>
+        ) : tab === 'portal' ? <Portal onSessionChange={() => {catalogRequest.current+=1;quizRequest.current+=1;setSessionVersion(v=>v+1);setQuizzes([]);setActiveQuiz(null);setResult(null)}}/> : <>
           <section className="catalog container" id="catalogo">
             <div className="section-top">
-              <div><span className="section-kicker">UM POUCO TODOS OS DIAS</span><h2>{tab === 'biblioteca' ? 'O que vamos aprender hoje?' : 'Aprende com a prática'}</h2><p>{tab === 'biblioteca' ? 'Escolhe a tua classe e encontra o próximo material para estudar.' : 'Escolhe um exercício. Responde ao teu ritmo e vê o resultado.'}</p></div>
+              <div><span className="section-kicker">UM POUCO TODOS OS DIAS</span><h2>{tab === 'biblioteca' ? 'Conhecimento para descobrir.' : 'Aprende com a prática'}</h2><p>{tab === 'biblioteca' ? 'Livros, pesquisas, vídeos e muito mais, num só lugar.' : 'Exercícios autorizados para as tuas turmas. As outras turmas mantêm o seu espaço privado.'}</p></div>
               <div className={status === 'connected' ? 'connection connected' : 'connection disconnected'}><RadioTower size={17}/>{status === 'connected' ? 'EduBox local ligada' : status === 'loading' ? 'A verificar ligação…' : 'Servidor indisponível'}</div>
             </div>
-            <div className="toolbar">
-              <div className="grade-list"><button aria-pressed={grade === 'all'} className={grade === 'all' ? 'grade active' : 'grade'} onClick={() => setGrade('all')}>Todas</button>{[8,9,10,11,12].map(g => <button key={g} aria-pressed={grade === g} className={grade === g ? 'grade active' : 'grade'} onClick={() => setGrade(g)}>{g}.ª classe</button>)}</div>
+            {(tab === 'biblioteca' || !loginRequired) && <div className="toolbar">
+              <div className="grade-list"><button aria-pressed={grade === 'all'} className={grade === 'all' ? 'grade active' : 'grade'} onClick={() => setGrade('all')}>Todas</button>{(tab === 'biblioteca' ? [8,9,10,11,12] : quizGrades).map(g => <button key={g} aria-pressed={grade === g} className={grade === g ? 'grade active' : 'grade'} onClick={() => setGrade(g)}>{g}.ª classe</button>)}</div>
               <label className="search"><Search size={18}/><span className="sr-only">Procurar materiais e exercícios</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="O que procuras?" /></label>
-            </div>
+            </div>}
             {error && <div className="error-box">{error} <button onClick={() => void refresh()}><RefreshCw size={16}/> Tentar novamente</button></div>}
-            <div className="list-title"><h3>{tab === 'biblioteca' ? 'Materiais disponíveis' : 'Testes disponíveis'}</h3><span>{tab === 'biblioteca' ? visibleResources.length : visibleQuizzes.length} resultados</span></div>
+            {tab === 'testes' && <div className="list-title"><h3>Exercícios das minhas turmas</h3><span>{visibleQuizzes.length} resultados</span></div>}
             {loading ? <div className="empty"><RefreshCw size={34} className="spin"/><p>A carregar conteúdos...</p></div>
-              : tab === 'biblioteca' ? (visibleResources.length > 0 ? <div className="cards">{visibleResources.map(item => <article className="subject-card" key={item.id}>
-                  <div className="card-top"><div className="card-icon"><FileText/></div><span className="grade-badge">{item.grade}.ª classe</span></div>
-                  <div className="card-subject">{item.subject}</div><h4>{item.title}</h4><p>{item.description || 'Material educativo disponível para consulta.'}</p>
-                  <div className="card-footer"><button onClick={() => setLesson(item)}>Abrir material <ChevronRight size={17}/></button>{item.file_url && <a href={item.file_url} download title="Descarregar material"><Download size={17}/></a>}</div>
-                </article>)}</div> : <EmptyState message="Ainda não existem materiais publicados para esta selecção."/> )
+              : tab === 'biblioteca' ? <Library resources={resources} search={search} onLogin={()=>chooseTab('portal')}/>
+              : loginRequired ? <div className="empty"><LockKeyhole size={32}/><p>Entra para ver os exercícios da tua turma.</p><button className="btn btn-primary" onClick={()=>chooseTab('portal')}>Entrar no meu espaço</button></div>
               : (visibleQuizzes.length > 0 ? <div className="cards">{visibleQuizzes.map(item => <article className="subject-card" key={item.id}>
                 <div className="card-top"><div className="card-icon quiz-icon"><ClipboardCheck/></div><span className="grade-badge">{item.grade}.ª classe</span></div>
                 <div className="card-subject">{item.subject}</div><h4>{item.title}</h4><p>{item.question_count} {item.question_count === 1 ? 'pergunta' : 'perguntas'} · correcção automática</p>
                 <div className="card-footer"><button onClick={() => void openQuiz(item.id)}>Começar teste <ChevronRight size={17}/></button></div>
-              </article>)}</div> : <EmptyState message="Ainda não existem testes publicados para esta selecção." />)}
+              </article>)}</div> : <EmptyState message="Não há exercícios atribuídos às tuas turmas nesta selecção." />)}
             {subjects.length > 0 && <div className="catalog-note"><BookOpen size={19}/><span>Os materiais guardados na EduBox abrem sem Internet. Mantém a ligação ao Wi-Fi da escola.</span></div>}
           </section>
         </>}
@@ -169,22 +185,11 @@ function App() {
 
       <footer><div className="container footer-content"><div className="footer-brand"><BookOpen size={23}/> EduBox</div><span>Aprender é possível em qualquer lugar.</span><span>Feito para aprender. Mesmo sem Internet.</span></div></footer>
 
-      {lesson && <div className="modal-overlay" role="presentation" onClick={() => setLesson(null)}>
-        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="lesson-title" onClick={e => e.stopPropagation()}>
-          <div className="modal-header"><span className="grade-badge">{lesson.grade}.ª classe · {lesson.subject}</span><button aria-label="Fechar" className="close" onClick={() => setLesson(null)}><X/></button></div>
-          <h2 id="lesson-title">{lesson.title}</h2><p>{lesson.description}</p>
-          {lesson.body && <div className="lesson-content">{lesson.body}</div>}
-          <div className="modal-actions">
-            {lesson.file_url && <a className="btn btn-primary" target="_blank" rel="noreferrer" href={lesson.file_url}><FileText size={18}/> Abrir ficheiro</a>}
-            {lesson.external_url && <a className="btn btn-outline-dark" target="_blank" rel="noreferrer" href={lesson.external_url}><ExternalLink size={18}/> Abrir ligação online</a>}
-          </div>
-          {lesson.rights_note && <small className="rights-note">Origem/licença: {lesson.rights_note}</small>}
-        </div>
-      </div>}
+
     </div>
   )
 }
 
-function EmptyState({ message }: { message: string }) { return <div className="empty"><BookOpen size={34}/><p>{message}</p><small>O professor pode adicionar conteúdos no painel de administração.</small></div> }
+function EmptyState({ message }: { message: string }) { return <div className="empty"><BookOpen size={34}/><p>{message}</p><small>Os exercícios aparecem quando forem atribuídos à tua turma.</small></div> }
 
 export default App

@@ -33,6 +33,15 @@ class Subject(models.Model):
 
 
 class Resource(models.Model):
+    KIND_CHOICES = [
+        ('book', 'Livro'), ('research', 'Trabalho de pesquisa'),
+        ('video', 'Vídeo'), ('audiobook', 'Audiolivro'), ('audio', 'Áudio'),
+        ('document', 'Documento / apontamentos'), ('image', 'Imagem'),
+        ('other', 'Outros materiais'),
+    ]
+    kind = models.CharField('Tipo de material', max_length=20, choices=KIND_CHOICES, default='other')
+    author = models.CharField('Autor / instituição', max_length=180, blank=True)
+    language = models.CharField('Idioma', max_length=60, blank=True)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="resources", verbose_name="Disciplina")
     title = models.CharField("Título", max_length=180)
     description = models.TextField("Descrição", blank=True)
@@ -58,6 +67,9 @@ class Resource(models.Model):
 
 
 class Quiz(models.Model):
+    classrooms = models.ManyToManyField('Classroom', blank=True, related_name='quizzes',
+                                       verbose_name='Turmas autorizadas',
+                                       help_text='Sem turmas seleccionadas, o exercício fica reservado à administração.')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="quizzes", verbose_name="Disciplina")
     title = models.CharField("Título", max_length=180)
     published = models.BooleanField("Publicado", default=True)
@@ -181,3 +193,29 @@ class Submission(models.Model):
         verbose_name_plural = 'Respostas de alunos'
         constraints = [models.UniqueConstraint(fields=['assignment','student'], name='unique_assignment_student')]
     def __str__(self): return f'{self.student.username}: {self.assignment.title}'
+
+
+
+class Announcement(models.Model):
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='edubox_announcements')
+    classrooms = models.ManyToManyField(Classroom, related_name='announcements', verbose_name='Turmas destinatárias')
+    title = models.CharField('Título', max_length=180)
+    body = models.TextField('Mensagem', max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        verbose_name = 'Anúncio'
+        verbose_name_plural = 'Anúncios'
+
+    def __str__(self):
+        return self.title
+
+
+class AnnouncementRead(models.Model):
+    announcement = models.ForeignKey(Announcement, on_delete=models.CASCADE, related_name='reads')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['announcement', 'student'], name='unique_announcement_reader')]
