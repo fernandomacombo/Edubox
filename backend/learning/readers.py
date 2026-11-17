@@ -56,8 +56,8 @@ def describe_file(field, page_url, request, stream_url=None):
                 pdf.close()
     elif suffix in {'.png', '.jpg', '.jpeg', '.webp'}:
         info.update(mode='image', page_count=1, page_url=page_url)
-    elif suffix in {'.mp3', '.mp4'} and stream_url:
-        info.update(mode='audio' if suffix == '.mp3' else 'video', stream_url=stream_url)
+    elif suffix == '.mp4' and stream_url:
+        info.update(mode='video', stream_url=stream_url)
     else:
         raise ValueError('Este formato ainda não pode ser consultado no leitor.')
     return info

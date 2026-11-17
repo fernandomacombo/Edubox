@@ -8,12 +8,12 @@ const base={description:'Material de estudo',subject:'Ciências',grade:9,has_fil
 const items:LibraryResource[]=[
  {...base,id:1,title:'Livro da nona',kind:'book',author:'Maria',has_text:true},
  {...base,id:2,title:'Pesquisa sobre água',kind:'research',subject:'Geografia',has_text:true},
- {...base,id:3,title:'Leitura em voz alta',kind:'audiobook',has_file:true,file_format:'mp3'},
+ {...base,id:3,title:'Ebook de leitura',kind:'ebook',has_file:true,file_format:'pdf'},
  {...base,id:4,title:'Vídeo sobre células',kind:'video',has_file:true,file_format:'mp4'},
  {...base,id:5,title:'Museu online',kind:'other',has_external:true},
 ]
 beforeEach(()=>{
- vi.stubGlobal('fetch',vi.fn(async(path:string)=>({ok:true,json:async()=>path.includes('/3/')?{viewer:{mode:'audio',stream_url:'/media/livro.mp3?access=test',viewer_label:'EduBox | @ana'}}:{viewer:{mode:'video',stream_url:'/media/celulas.mp4?access=test',viewer_label:'EduBox | @ana'}}})))
+ vi.stubGlobal('fetch',vi.fn(async(path:string)=>({ok:true,json:async()=>path.includes('/3/')?{viewer:{mode:'pdf',page_count:1,page_url:'/api/resources/3/pages/',viewer_label:'EduBox | @ana'}}:{viewer:{mode:'video',stream_url:'/media/celulas.mp4?access=test',viewer_label:'EduBox | @ana'}}})))
  HTMLDialogElement.prototype.showModal=vi.fn(function(this:HTMLDialogElement){this.setAttribute('open','')})
  HTMLDialogElement.prototype.close=vi.fn(function(this:HTMLDialogElement){this.removeAttribute('open')})
 })
@@ -30,14 +30,14 @@ test('library categories and discipline filters keep published research separate
  await user.selectOptions(screen.getByLabelText('Disponibilidade'),'local')
  expect(screen.queryByRole('heading',{name:'Museu online'})).toBeNull()
 })
-test('search includes authors and reader supports local audio and video',async()=>{
+test('search includes authors and reader supports local ebooks and video',async()=>{
  const user=userEvent.setup()
  const {rerender}=render(<Library resources={items} search="Maria"/>)
  expect(screen.getByRole('heading',{name:'Livro da nona'})).toBeTruthy()
  expect(screen.queryByRole('heading',{name:'Vídeo sobre células'})).toBeNull()
  rerender(<Library resources={items} search=""/>)
- await user.click(screen.getByRole('button',{name:'Abrir Leitura em voz alta'}))
- expect((await screen.findByLabelText('Áudio: Leitura em voz alta')).getAttribute('src')).toBe('/media/livro.mp3?access=test')
+ await user.click(screen.getByRole('button',{name:'Abrir Ebook de leitura'}))
+ expect((await screen.findByAltText('Ebook de leitura — página 1')).getAttribute('src')).toBe('/api/resources/3/pages/?page=1')
  await user.click(screen.getByRole('button',{name:'Fechar material'}))
  await user.click(screen.getByRole('button',{name:'Abrir Vídeo sobre células'}))
  expect((await screen.findByLabelText('Vídeo: Vídeo sobre células')).getAttribute('src')).toBe('/media/celulas.mp4?access=test')

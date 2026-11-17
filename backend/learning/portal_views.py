@@ -3,11 +3,12 @@ from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from .readers import describe_file, private_response, render_page
-from .models import Classroom, Enrollment, Assignment, Submission, Resource, MAX_ASSIGNMENT_PDF_SIZE, validate_assignment_pdf
+from .models import Classroom, Enrollment, Assignment, Submission, Resource, AssignmentGroup, GroupMember, MAX_ASSIGNMENT_PDF_SIZE, validate_assignment_pdf
 
 
 def role(user):
@@ -95,7 +96,7 @@ def enroll(request,pk):
     return JsonResponse({'ok':True},status=201)
 
 def visible_assignments(request):
-    qs=Assignment.objects.select_related('classroom','resource').prefetch_related('submissions')
+    qs=Assignment.objects.select_related('classroom','resource').prefetch_related('submissions', 'work_groups__members__student')
     r=role(request.user)
     if r=='teacher':return qs.filter(classroom__teacher=request.user)
     if r=='student':return qs.filter(published=True,classroom__enrollments__student=request.user).distinct()
@@ -105,12 +106,18 @@ def visible_assignments(request):
 def assignment_dict(item,user):
     mine=next((s for s in item.submissions.all() if s.student_id==user.id),None)
     resource=item.resource
-    result = {'id':item.id,'title':item.title,'instructions':item.instructions,'class_id':item.classroom_id,'class_name':item.classroom.name,
+    group = next((g for g in item.work_groups.all() if any(m.student_id == user.id for m in g.members.all())), None)
+    result = {'kind': item.kind, 'kind_label': item.get_kind_display(),
+            'accepting_submissions': item.accepting_submissions, 'correction_published': item.correction_published,
+            'correction': item.correction if item.correction_published or role(user) in {'teacher', 'admin'} else '',
+            'my_group': {'id': group.id, 'name': group.name, 'members': [who(m.student) for m in group.members.all()]} if group else None,
+            'id':item.id,'title':item.title,'instructions':item.instructions,'class_id':item.classroom_id,'class_name':item.classroom.name,
             'grade':item.classroom.grade,'created_at':item.created_at.isoformat(),
             'attachment_url':f'/api/portal/assignments/{item.pk}/file/' if item.attachment else None,'resource':{'id':resource.id,'title':resource.title,'file_url':None, 'body':'', 'external_url':''} if resource and resource.published else None,
             'my_answer':{'answer':mine.answer,'score':mine.score,'feedback':mine.feedback} if mine else None}
     if role(user) in {'teacher', 'admin'}:
         submissions = list(item.submissions.all())
+        result['groups'] = [{'id': g.id, 'name': g.name, 'members': [who(m.student) for m in g.members.all()]} for g in item.work_groups.all()]
         result['response_count'] = len(submissions)
         result['pending_count'] = sum(s.score is None for s in submissions)
     return result
@@ -135,7 +142,7 @@ def assignments(request):
         cls = Classroom.objects.get(pk=int(obj.get('class_id')), teacher=request.user)
         resource = None
         if obj.get('resource_id'):
-            resource = Resource.objects.get(pk=int(obj['resource_id']), published=True, subject__grade=cls.grade)
+            resource = Resource.objects.filter(published=True).filter(Q(subject__isnull=True) | Q(subject__grade=cls.grade)).get(pk=int(obj['resource_id']))
         title = str(obj.get('title', '')).strip()
         instructions = str(obj.get('instructions', '')).strip()
     except (ValueError, TypeError, Classroom.DoesNotExist, Resource.DoesNotExist):
@@ -159,7 +166,7 @@ def assignments(request):
         if upload.size > MAX_ASSIGNMENT_PDF_SIZE:
             return err('O PDF nao pode exceder 15 MB.')
 
-    item = Assignment(classroom=cls, resource=resource, title=title, instructions=instructions)
+    item = Assignment(classroom=cls, resource=resource, title=title, instructions=instructions, kind=obj.get('kind', 'exercise'))
     if upload:
         item.attachment = upload
     try:
@@ -209,24 +216,38 @@ def assignment_page(request, pk):
 
 @require_POST
 def submit(request,pk):
-    blocked=guard(request,{'student'})
-    if blocked:return blocked
-    a=get_object_or_404(visible_assignments(request),pk=pk)
-    try: obj=data(request);answer=str(obj.get('answer','')).strip()
-    except ValueError as e:return err(str(e))
-    if not answer or len(answer)>8000:return err('Escreve uma resposta de até 8000 caracteres.')
+    blocked = guard(request, {'student'})
+    if blocked: return blocked
     try:
-        with transaction.atomic():Submission.objects.create(assignment=a,student=request.user,answer=answer)
-    except IntegrityError:return err('Já entregaste esta ficha.',409)
-    return JsonResponse({'ok':True},status=201)
+        obj = data(request)
+        answer = str(obj.get('answer', '')).strip()
+    except ValueError as e: return err(str(e))
+    if not answer or len(answer) > 8000: return err('Escreve uma resposta de até 8000 caracteres.')
+    try:
+        with transaction.atomic():
+            # Lock the assignment before reading closure/groups or writing any delivery.
+            a = get_object_or_404(Assignment.objects.select_for_update(), pk=pk)
+            if not visible_assignments(request).filter(pk=a.pk).exists(): return err('Actividade não disponível.', 404)
+            if not a.accepting_submissions: return err('O professor encerrou as entregas desta actividade.', 409)
+            students, group = [request.user.id], None
+            if a.kind == 'group':
+                membership = GroupMember.objects.select_related('group').filter(assignment=a, student=request.user).first()
+                if not membership: return err('O professor precisa de te atribuir a um grupo antes da entrega.', 409)
+                group = membership.group
+                students = list(group.members.filter(student__edubox_enrollments__classroom=a.classroom, student__is_active=True).values_list('student_id', flat=True).distinct())
+                if a.submissions.filter(group=group).exists(): return err('O teu grupo já entregou este trabalho.', 409)
+            for student_id in students:
+                Submission.objects.create(assignment=a, student_id=student_id, submitted_by=request.user, group=group, answer=answer)
+    except IntegrityError: return err('Já entregaste esta ficha.',409)
+    return JsonResponse({'ok': True}, status=201)
 
 @require_GET
 def responses(request,pk):
     blocked=guard(request,{'teacher','admin'})
     if blocked:return blocked
     a=get_object_or_404(visible_assignments(request),pk=pk)
-    return JsonResponse({'results':[{'id':s.id,'student':who(s.student),'answer':s.answer,'score':s.score,'feedback':s.feedback}
-                                     for s in a.submissions.select_related('student')]})
+    return JsonResponse({'results':[{'id':s.id,'student':who(s.student),'answer':s.answer,'score':s.score,'feedback':s.feedback,'group_name':s.group.name if s.group_id else None}
+                                     for s in a.submissions.select_related('student','group')]})
 
 @require_POST
 def grade_submission(request,pk):
@@ -239,5 +260,75 @@ def grade_submission(request,pk):
         if type(score) is not int or not 0<=score<=20:raise ValueError('A nota deve ser inteiro entre 0 e 20.')
         if len(feedback)>2000:raise ValueError('Comentário demasiado longo.')
     except ValueError as e:return err(str(e))
-    s.score=score;s.feedback=feedback;s.save(update_fields=['score','feedback'])
+    with transaction.atomic():
+        locked = Assignment.objects.select_for_update().select_related('classroom').get(pk=s.assignment_id)
+        if role(request.user) != 'admin' and locked.classroom.teacher_id != request.user.id: return err('Sem autorização para esta turma.',403)
+        if s.group_id:
+            Submission.objects.filter(assignment_id=s.assignment_id, group_id=s.group_id).update(score=score, feedback=feedback)
+        else:
+            s.score=score;s.feedback=feedback;s.save(update_fields=['score','feedback'])
     return JsonResponse({'ok':True})
+
+
+@require_POST
+def activity_settings(request, pk):
+    blocked = guard(request, {'teacher', 'admin'})
+    if blocked: return blocked
+    try: obj = data(request)
+    except ValueError as e: return err(str(e))
+    with transaction.atomic():
+        item = get_object_or_404(Assignment.objects.select_for_update(), pk=pk)
+        if not visible_assignments(request).filter(pk=pk).exists(): return err('Sem autorização.', 403)
+        if 'kind' in obj:
+            if obj['kind'] not in dict(Assignment.KIND_CHOICES): return err('Tipo de actividade inválido.')
+            if obj['kind'] != item.kind and 'group' in {obj['kind'], item.kind} and (item.submissions.exists() or item.work_groups.exists()):
+                return err('O tipo não pode mudar depois de formar grupos ou receber entregas.', 409)
+            item.kind = obj['kind']
+        correction = str(obj.get('correction', item.correction)).strip()
+        published = obj.get('correction_published', item.correction_published)
+        accepting = obj.get('accepting_submissions', item.accepting_submissions)
+        if len(correction) > 12000 or type(published) is not bool or type(accepting) is not bool:
+            return err('Dados de correcção inválidos.')
+        if published:
+            if accepting: return err('Encerra as entregas antes de publicar a correcção.')
+            if not correction: return err('Escreve a resolução antes de publicar.')
+            if item.submissions.filter(score__isnull=True).exists(): return err('Avalia as respostas entregues antes de publicar a correcção.')
+        item.correction, item.correction_published, item.accepting_submissions = correction, published, accepting
+        item.save(update_fields=['kind', 'correction', 'correction_published', 'accepting_submissions'])
+    return JsonResponse({'ok': True})
+
+
+@require_POST
+def activity_groups(request, pk):
+    blocked = guard(request, {'teacher', 'admin'})
+    if blocked: return blocked
+    try:
+        obj = data(request)
+        name, usernames = str(obj.get('name', '')).strip(), obj.get('members')
+        if not name or len(name) > 100 or not isinstance(usernames, list) or not 2 <= len(usernames) <= 100 or any(not isinstance(x, str) for x in usernames):
+            return err('Indica um nome e pelo menos dois alunos para o grupo.')
+        if len(set(usernames)) != len(usernames): return err('Não repitas alunos no grupo.')
+        with transaction.atomic():
+            item = get_object_or_404(Assignment.objects.select_for_update(), pk=pk)
+            if not visible_assignments(request).filter(pk=pk).exists(): return err('Sem autorização.', 403)
+            if item.kind != 'group' or not item.accepting_submissions: return err('Esta actividade não aceita novos grupos.')
+            students = list(get_user_model().objects.filter(username__in=usernames, is_active=True, edubox_enrollments__classroom=item.classroom).distinct())
+            if len(students) != len(usernames) or any(role(u) != 'student' for u in students): return err('Todos os membros devem ser alunos activos desta turma.')
+            if GroupMember.objects.filter(assignment=item, student__in=students).exists(): return err('Um dos alunos já pertence a outro grupo desta actividade.', 409)
+            if item.submissions.filter(student__in=students).exists(): return err('Um dos alunos já entregou esta actividade.', 409)
+            group = AssignmentGroup.objects.create(assignment=item, name=name)
+            GroupMember.objects.bulk_create([GroupMember(assignment=item, group=group, student=u) for u in students])
+    except (ValueError, TypeError): return err('Grupo inválido.')
+    except IntegrityError: return err('O nome ou os membros deste grupo já estão registados.', 409)
+    return JsonResponse({'ok': True}, status=201)
+
+
+@require_GET
+def history(request):
+    blocked = guard(request, {'student', 'admin'})
+    if blocked: return blocked
+    qs = Submission.objects.select_related('assignment__classroom').filter(student=request.user)
+    qs = qs.exclude(assignment__classroom__enrollments__student=request.user)
+    return private_response(JsonResponse({'results': [{'id': s.id, 'title': s.assignment.title,
+        'class_name': str(s.assignment.classroom), 'answer': s.answer, 'score': s.score, 'feedback': s.feedback,
+        'submitted_at': s.submitted_at.isoformat()} for s in qs.order_by('-submitted_at')]}))

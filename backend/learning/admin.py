@@ -18,7 +18,7 @@ class SchoolAdmin(admin.ModelAdmin):
 
 
 @admin.register(Subject)
-class SubjectAdmin(admin.ModelAdmin):
+class SubjectAdmin(SchoolAdmin):
     list_display = ("name", "grade")
     list_filter = ("grade",)
     search_fields = ("name",)
@@ -28,12 +28,12 @@ class ProtectedFileInput(forms.ClearableFileInput):
 
 
 @admin.register(Resource)
-class ResourceAdmin(admin.ModelAdmin):
+class ResourceAdmin(SchoolAdmin):
     formfield_overrides = {models.FileField: {'widget': ProtectedFileInput}}
-    list_display = ("title", "kind", "author", "subject", "published", "created_at")
-    list_filter = ("kind", "published", "subject__grade", "subject", "language")
+    list_display = ("title", "kind", "category", "author", "subject", "published", "created_at")
+    list_filter = ("kind", "category", "published", "subject__grade", "subject", "language")
     search_fields = ("title", "description", "author")
-    fieldsets = (("Catálogo público da biblioteca", {"fields": ("title", "kind", "subject", "author", "language", "description")}), ("Conteúdo", {"fields": ("body", "file", "external_url")}), ("Publicação", {"fields": ("rights_note", "published"), "description": "Materiais publicados podem ser consultados por todas as classes. Não publique aqui fichas privadas ou respostas de alunos."}))
+    fieldsets = (("Catálogo público da biblioteca", {"fields": ("title", "kind", "category", "subject", "author", "language", "description")}), ("Conteúdo", {"fields": ("body", "file", "external_url")}), ("Publicação", {"fields": ("rights_note", "published"), "description": "Materiais publicados podem ser consultados por todas as classes. Não publique aqui fichas privadas ou respostas de alunos."}))
 
 class QuestionInline(admin.TabularInline):
     model = Question
@@ -85,9 +85,9 @@ class EnrollmentAdmin(SchoolAdmin):
 
 @admin.register(Assignment)
 class AssignmentAdmin(SchoolAdmin):
-    list_display = ('title','classroom','published')
+    list_display = ('title','kind','classroom','published')
+    readonly_fields = ('private_pdf', 'kind', 'accepting_submissions', 'correction', 'correction_published')
     exclude = ('attachment',)
-    readonly_fields = ('private_pdf',)
 
     @admin.display(description='PDF privado')
     def private_pdf(self, obj):
@@ -99,3 +99,13 @@ class AssignmentAdmin(SchoolAdmin):
 class SubmissionAdmin(SchoolAdmin):
     list_display = ('student','assignment','score')
     readonly_fields = ('student','assignment','answer','submitted_at')
+
+
+from .models import TransferRecord
+@admin.register(TransferRecord)
+class TransferRecordAdmin(SchoolAdmin):
+    list_display = ('created_at', 'kind', 'actor', 'reason')
+    readonly_fields = ('created_at', 'kind', 'actor', 'reason', 'details')
+    def has_add_permission(self, request): return False
+    def has_change_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return False

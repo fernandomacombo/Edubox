@@ -102,13 +102,57 @@
 .library-categories button:hover{background:#f0f5ec}.library-filters{display:flex;gap:14px;align-items:end;flex-wrap:wrap}.library-filters label{display:grid;gap:6px;flex:1;min-width:140px}.library-filters label span{font-size:12px;color:var(--muted)}
 .library-filters select{border:1px solid var(--line);border-radius:9px;background:#fff;padding:12px;color:var(--ink);font-size:14px;max-width:100%}.library-filters .portal-light[aria-pressed=true]{background:var(--green);color:white}
 .library-author{display:block;color:var(--muted);margin:0 0 12px;font-size:12px}.availability{align-self:flex-start;display:inline-block;border-radius:7px;font-size:11px;padding:6px 9px;margin-top:18px}.availability.local{background:#eaf3e6;color:#426439}.availability.online{background:#fff0da;color:#815a28}
-.library-video .card-icon{background:#eee7f3;color:#795c92}.library-audiobook .card-icon,.library-audio .card-icon{background:#f6e8d9;color:#97653c}
-.library-dialog{position:fixed;inset:0;margin:auto;width:min(780px,calc(100% - 32px));max-height:90vh;border:1px solid var(--line);border-radius:24px;padding:0;color:var(--ink);background:#fff;box-shadow:0 30px 90px #112c3a44;overflow:auto}.library-dialog::backdrop{background:#142a27aa}.library-dialog-inner{padding:30px}.library-dialog h2{font-size:28px;line-height:1.2;font-weight:700;margin:22px 0 10px}.library-dialog p{font-size:14px;line-height:1.7;color:var(--muted)}.library-dialog video{width:100%;max-height:440px;border-radius:12px;background:#182a25}.library-dialog audio{width:100%;margin:18px 0}.library-image{max-width:100%;height:auto;max-height:500px;object-fit:contain;margin:18px auto;display:block}.library-metadata{color:var(--green)!important}.library-dialog .lesson-content{white-space:pre-wrap}
+.library-video .card-icon{background:#eee7f3;color:#795c92}.library-ebook .card-icon{background:#f6e8d9;color:#97653c}
+.library-dialog{position:fixed;inset:0;margin:auto;width:min(780px,calc(100% - 32px));max-height:90vh;border:1px solid var(--line);border-radius:24px;padding:0;color:var(--ink);background:#fff;box-shadow:0 30px 90px #112c3a44;overflow:auto}.library-dialog::backdrop{background:#142a27aa}.library-dialog-inner{padding:30px}.library-dialog h2{font-size:28px;line-height:1.2;font-weight:700;margin:22px 0 10px}.library-dialog p{font-size:14px;line-height:1.7;color:var(--muted)}.library-dialog video{width:100%;max-height:440px;border-radius:12px;background:#182a25}.library-image{max-width:100%;height:auto;max-height:500px;object-fit:contain;margin:18px auto;display:block}.library-metadata{color:var(--green)!important}.library-dialog .lesson-content{white-space:pre-wrap}
 .nav{gap:20px}.notifications{position:relative;flex-shrink:0}.notification-trigger{position:relative;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:var(--green);border-radius:12px;padding:11px;min-height:44px;font-size:13px}.notification-count{border-radius:20px;background:#ad4c32;color:#fff;font-size:11px;min-width:20px;min-height:20px;display:grid;place-items:center;padding:2px 5px}
 .notification-panel{position:absolute;right:0;top:calc(100% + 14px);width:min(500px,calc(100vw - 32px));max-height:80vh;overflow:auto;z-index:50;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 18px 60px #173b3626;padding:24px}.notification-panel .panel-heading{gap:12px;margin-bottom:12px}.notification-panel h2{font-size:19px;font-weight:650;display:flex;align-items:center;gap:8px;margin:0}.notification-panel .portal-hint{font-size:12px;line-height:1.6;display:block;margin:12px 0}.notice-form{margin-top:18px;padding:18px;background:#f6f8f5}.notice-list{display:grid;gap:12px;margin:18px 0}.notice{border:1px solid var(--line);border-radius:13px;padding:17px;background:#fafcfb}.notice.unread{border-left:4px solid var(--green);background:#f0f6e9}.notice small{font-size:11px;color:var(--muted)}.notice h3{font-size:17px;line-height:1.35;font-weight:650;margin:8px 0}.notice p{font-size:14px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}.notice .text-button{display:flex;align-items:center;gap:6px;margin-top:8px}.notice-list .empty{padding:26px 16px}
 @media(max-width:900px){.notification-label{display:none}.nav{gap:10px}.nav-link{padding:10px}.library-categories{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.nav{position:relative;flex-wrap:wrap;height:auto;padding-top:16px;padding-bottom:12px}.nav .brand{order:0}.nav .notifications{order:1;margin-left:auto}.nav .links{order:2;width:100%;justify-content:center}.notification-panel{position:fixed;top:80px;left:16px;right:16px;width:auto;max-height:calc(100dvh - 100px);padding:18px}.library-categories{gap:9px}.library-categories button{padding:15px;gap:8px}.library-intro{padding:16px;align-items:flex-start}.library-filters label{min-width:calc(50% - 14px)}.library-filters>.portal-light{width:100%}.library-dialog-inner{padding:20px}.library-dialog h2{font-size:23px}}
 
-.material-viewer{margin:20px 0;user-select:none;-webkit-user-select:none}.material-viewer video,.material-viewer audio{width:100%;max-height:500px}.reader-controls{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.reader-controls span{font-size:13px;color:var(--muted)}.reader-page{display:block;max-width:100%;height:auto;margin:auto;border:1px solid var(--line)}.reader-label{display:block;font-size:11px;color:var(--muted);margin-top:10px;text-align:center}.reader-notice,.library-access-note{font-size:12px;line-height:1.6;color:var(--muted);margin:18px 0}.inline-reader{padding:18px;background:#f5f7f4;border:1px solid var(--line);border-radius:12px;margin:18px 0}.assignment-material{margin:16px 0}.protected-text{user-select:none;-webkit-user-select:none}.library .portal-danger .portal-light{margin-left:12px}
+.material-viewer{margin:20px 0;user-select:none;-webkit-user-select:none}.material-viewer video{width:100%;max-height:500px}.reader-controls{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.reader-controls span{font-size:13px;color:var(--muted)}.reader-page{display:block;max-width:100%;height:auto;margin:auto;border:1px solid var(--line)}.reader-label{display:block;font-size:11px;color:var(--muted);margin-top:10px;text-align:center}.reader-notice,.library-access-note{font-size:12px;line-height:1.6;color:var(--muted);margin:18px 0}.inline-reader{padding:18px;background:#f5f7f4;border:1px solid var(--line);border-radius:12px;margin:18px 0}.assignment-material{margin:16px 0}.protected-text{user-select:none;-webkit-user-select:none}.library .portal-danger .portal-light{margin-left:12px}
 @media print{.material-viewer,.protected-text,.inline-reader{display:none!important}}
 @media(max-width:480px){.reader-controls{flex-wrap:wrap}.reader-controls .portal-light{padding:8px;font-size:12px}.inline-reader{padding:10px}}
+
+/* School administration and visible, accessible save states. */
+.save-feedback:empty {display:none}
+.save-feedback {position:fixed;right:24px;bottom:24px;z-index:300;max-width:min(480px,calc(100vw - 32px));display:grid;gap:8px}
+.save-feedback>div {display:flex;align-items:center;gap:12px;padding:18px 22px;border-radius:14px;border:1px solid #c2d9cd;box-shadow:0 8px 35px #173f352b;background:#eff9f2;color:#164f3e;font-weight:600}
+.save-feedback svg {flex-shrink:0}
+.save-feedback .saving {background:#fff8e6;border-color:#e9d69b;color:#65501a}
+.save-feedback .failed {background:#fff1ef;color:#8b2921;border-color:#edc4be}
+.school-bulletin {padding-top:40px;padding-bottom:60px}
+.school-bulletin .learning-banner {display:flex;align-items:center;justify-content:space-between;gap:32px;margin-bottom:32px}
+.school-bulletin h1 {color:white;font-size:clamp(30px,4vw,48px);line-height:1.2;margin:14px 0}
+.bulletin-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:22px}
+.school-dashboard {padding-bottom:36px}
+.school-tabs {margin:28px 0;flex-wrap:wrap}
+.school-form {padding:24px;background:#f4f7f4;border:1px solid #dce6de;border-radius:14px;margin:20px 0}
+.school-form fieldset,.work-groups fieldset {border:0;padding:0;margin:0;min-width:0;display:grid;gap:18px}
+.school-form input,.school-form select,.school-form textarea,.school-dashboard>div>label input {width:100%;padding:11px 12px;border:1px solid #cbd8cf;border-radius:8px;background:white;color:#193b32;font:inherit}
+.school-form label,.school-dashboard>div>label {display:grid;gap:7px;font-weight:600}
+.school-form textarea {resize:vertical}
+.school-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+label.check-label {display:flex;align-items:center;gap:10px;font-weight:500}
+.check-label input {width:18px;height:18px;flex-shrink:0;accent-color:#176b51}
+.school-row {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;border-bottom:1px solid #dfe7e1}
+.school-row>div {min-width:0;overflow-wrap:anywhere}
+.school-row small {display:block;color:#587166;margin-top:6px}
+.school-row p {margin:6px 0}
+.school-row button {flex-shrink:0}
+.school-admin-link {margin-top:26px;font-size:14px;color:#587166}
+.school-admin-link a {color:#176b51;display:inline-flex;align-items:center;gap:5px;text-decoration:underline}
+.activity-tools {border:1px solid #d7e1d9;border-radius:12px;margin:18px 0;padding:16px}
+.activity-tools summary {font-weight:600;cursor:pointer;color:#176b51}
+.activity-tools form {margin:18px 0}
+.activity-tools .school-form {padding:18px}
+.member-picker {display:grid;gap:10px;max-height:260px;overflow:auto;padding:12px;border:1px solid #d7e1d9;border-radius:8px}
+.work-groups {padding:16px 0}
+.work-groups input:not([type=checkbox]) {padding:10px;border:1px solid #d7e1d9;border-radius:8px;margin:8px;width:65%}
+.group-summary,.published-correction {background:#edf5e2;border:1px solid #d4e4c4;padding:18px;border-radius:12px;margin:16px 0}
+.published-correction h3 {margin:0 0 10px;color:#275632}
+.activity-filter {display:flex;align-items:center;gap:12px;font-size:14px;margin:12px 0 20px}
+.activity-filter select {padding:10px;border:1px solid #d7e1d9;border-radius:8px;background:white}
+.student-history {margin:18px 0}
+.student-history article {padding:16px 0;border-bottom:1px solid #dfe7e1}
+.library-filters {flex-wrap:wrap}
+@media(max-width:700px){.school-fields{grid-template-columns:1fr}.school-form{padding:16px}.school-row{align-items:flex-start;flex-direction:column;gap:12px}.school-bulletin .learning-banner>svg{display:none}.save-feedback{right:16px;bottom:16px}.school-tabs{gap:6px}.school-tabs button{font-size:13px}.activity-filter{flex-wrap:wrap}}

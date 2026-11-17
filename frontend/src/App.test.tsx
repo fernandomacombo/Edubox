@@ -24,7 +24,7 @@ afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 test('catalogue stays cross-grade while exercises require login and show only authorised grades after login',async()=>{
  const user=userEvent.setup();render(<App/>)
  await screen.findByRole('heading',{name:'Livro da nona'})
- expect(screen.getByRole('button',{name:'9.ª classe'})).toBeTruthy()
+ expect(screen.getByRole('option',{name:'9.ª classe'})).toBeTruthy()
  await user.click(screen.getByRole('button',{name:'Exercícios'}))
  await user.click(await screen.findByRole('button',{name:'Entrar no meu espaço'}))
  await user.type(await screen.findByLabelText('Utilizador'),'ana')

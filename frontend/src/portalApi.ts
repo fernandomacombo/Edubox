@@ -1,7 +1,7 @@
 export type Person = { username: string; name: string }
 export type Profile = Person & { role: 'admin' | 'teacher' | 'student' }
 
-export async function api<T>(path: string, body?: object | FormData, expectedUsername?: string, expectedRole: 'student' | 'teacher' = 'student'): Promise<T> {
+export async function api<T>(path: string, body?: object | FormData, expectedUsername?: string, expectedRole: 'student' | 'teacher' | 'admin' = 'student'): Promise<T> {
   if (body !== undefined) {
     const verify = await fetch('/api/portal/session/', { credentials: 'same-origin' })
     if (!verify.ok) throw new Error('Não foi possível confirmar a sessão.')

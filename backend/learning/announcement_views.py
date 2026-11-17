@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods, require_POST
@@ -7,10 +8,10 @@ from .portal_views import data, err, guard, role, who
 
 
 def visible_announcements(request):
-    qs = Announcement.objects.select_related('author').prefetch_related('classrooms')
+    qs = Announcement.objects.filter(published=True).select_related('author').prefetch_related('classrooms')
     if role(request.user) == 'teacher':
-        return qs.filter(author=request.user)
-    return qs.filter(classrooms__enrollments__student=request.user).distinct()
+        return qs.filter(Q(school_wide=True) | Q(classrooms__teacher=request.user)).distinct()
+    return qs.filter(Q(classrooms__enrollments__student=request.user) | Q(school_wide=True)).distinct()
 
 
 @require_http_methods(['GET', 'POST'])
@@ -43,16 +44,18 @@ def announcements(request):
 
     qs = visible_announcements(request)
     is_student = role(request.user) == 'student'
-    read_ids = set(AnnouncementRead.objects.filter(student=request.user).values_list('announcement_id', flat=True)) if is_student else set()
-    unread = qs.exclude(id__in=read_ids).count() if is_student else 0
+    read_ids = set(AnnouncementRead.objects.filter(student=request.user).values_list('announcement_id', flat=True))
+    read_ids.update(qs.filter(author=request.user, school_wide=False).values_list('id', flat=True))
+    unread = qs.exclude(id__in=read_ids).count()
     # Show unread first, so a long history cannot hide an unread notification.
     from django.db.models import Case, When, Value, IntegerField
     qs = qs.annotate(read_order=Case(When(id__in=read_ids, then=Value(1)), default=Value(0), output_field=IntegerField())).order_by('read_order', '-created_at', '-id')
-    enrolled = set(Classroom.objects.filter(enrollments__student=request.user).values_list('id', flat=True)) if is_student else None
+    enrolled = set((Classroom.objects.filter(enrollments__student=request.user) if is_student else Classroom.objects.filter(teacher=request.user)).values_list('id', flat=True))
     result = [{'id': item.id, 'title': item.title, 'body': item.body,
                'author': who(item.author), 'created_at': item.created_at.isoformat(),
-               'class_names': [c.name for c in item.classrooms.all() if enrolled is None or c.id in enrolled],
-               'read': item.id in read_ids if is_student else True}
+               'school_wide': item.school_wide,
+               'class_names': ['Direcção da escola'] if item.school_wide else [c.name for c in item.classrooms.all() if enrolled is None or c.id in enrolled],
+               'read': item.id in read_ids}
               for item in qs[:100]]
     response = JsonResponse({'results': result, 'unread_count': unread})
     response['Cache-Control'] = 'private, no-store'
@@ -61,7 +64,7 @@ def announcements(request):
 
 @require_POST
 def mark_read(request, pk):
-    blocked = guard(request, {'student'})
+    blocked = guard(request, {'student', 'teacher'})
     if blocked:
         return blocked
     item = get_object_or_404(visible_announcements(request), pk=pk)

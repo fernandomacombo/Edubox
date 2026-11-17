@@ -71,7 +71,7 @@ export default function Notifications() {
     if(lock.current)return
     lock.current=true;request.current+=1;setBusy(true);setError('')
     try {
-      await api(`/api/portal/announcements/${id}/read/`,{},user?.username)
+      await api(`/api/portal/announcements/${id}/read/`,{},user?.username,user?.role==='teacher'?'teacher':'student')
       if(!alive.current)return
       setItems(old=>old.map(n=>n.id===id?{...n,read:true}:n));setUnread(old=>Math.max(0,old-1))
     } catch(e) {if(alive.current)setError(e instanceof Error?e.message:'Não foi possível marcar como lido.')}
@@ -82,7 +82,7 @@ export default function Notifications() {
     <button className="notification-trigger" aria-label={`Notificações${unread?`, ${unread} não lidas`:''}`} aria-expanded={open} aria-controls="notification-panel" onClick={()=>setOpen(!open)}><Bell size={20}/><span className="notification-label">Avisos</span>{unread>0&&<span className="notification-count" aria-live="polite">{unread}</span>}</button>
     {open&&<section id="notification-panel" className="notification-panel" aria-label="Notificações da turma">
       <div className="panel-heading"><h2><Bell size={20}/> {user.role==='teacher'?'Avisos às minhas turmas':'Notificações'}</h2><button className="close" aria-label="Fechar notificações" onClick={()=>setOpen(false)}><X size={19}/></button></div>
-      <p className="portal-hint">{user.role==='teacher'?'Os alunos das turmas escolhidas recebem uma notificação.':'Avisos dos teus professores, só para as tuas turmas.'}</p>
+      <p className="portal-hint">{user.role==='teacher'?'Os alunos das turmas escolhidas recebem uma notificação.':'Informes da escola e avisos dos teus professores.'}</p>
       {error&&<p className="portal-alert portal-danger" role="alert">{error} <button className="text-button" onClick={()=>void load().then(()=>setError('')).catch(()=>{})}>Tentar novamente</button></p>}
       {success&&<p className="portal-alert portal-good" role="status">{success}</p>}
       {user.role==='teacher'&&<button className="btn btn-primary" onClick={()=>setComposing(!composing)}><Plus size={16}/> Novo anúncio</button>}
@@ -96,7 +96,7 @@ export default function Notifications() {
       <div className="notice-list">{items.length===0?<div className="empty"><Megaphone size={30}/><p>Ainda não há anúncios.</p></div>:items.map(n=><article className={`notice ${n.read?'':'unread'}`} key={n.id}>
         <small>{n.class_names.join(' · ')}{!n.read&&<b> · Novo</b>}</small><h3>{n.title}</h3><p>{n.body}</p>
         <small>{n.author.name} · {new Date(n.created_at).toLocaleString('pt-PT')}</small>
-        {user.role==='student'&&!n.read&&<button className="text-button" disabled={busy} onClick={()=>void markRead(n.id)}><Check size={15}/> Marcar como lido</button>}
+        {!n.read&&<button className="text-button" disabled={busy} onClick={()=>void markRead(n.id)}><Check size={15}/> Marcar como lido</button>}
       </article>)}</div>
       <small className="portal-hint">Actualiza automaticamente a cada 30 segundos enquanto a EduBox estiver aberta e ligada à rede local. Apresenta até 100 avisos, com os não lidos primeiro.</small>
     </section>}

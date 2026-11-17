@@ -48,10 +48,11 @@ export default function StudentReply({username, assignmentId, title, submit}: {
       <button className="btn btn-primary" disabled={busy} onClick={() => void deliver()}>{busy ? 'A entregar…' : 'Confirmar entrega'}</button></div>
     </> : <>
       <label>Responder ao professor<textarea ref={input} rows={5} maxLength={8000} value={draft} aria-describedby={`draft-${assignmentId}`} onChange={e => edit(e.target.value)}/></label>
-      <p id={`draft-${assignmentId}`} className="portal-hint">{draft ? saved ? 'Rascunho guardado neste separador. Ainda não foi entregue.' : 'Não foi possível guardar o rascunho. Mantém esta página aberta até entregares.' : 'Podes escrever com calma e rever antes de entregar.'} <span>{draft.length}/8000 caracteres</span></p>
+      <p id={`draft-${assignmentId}`} className="portal-hint" role="status">{draft ? saved ? 'Rascunho guardado neste separador. Ainda não foi entregue.' : 'Não foi possível guardar o rascunho. Mantém esta página aberta até entregares.' : 'Podes escrever com calma e rever antes de entregar.'} <span>{draft.length}/8000 caracteres</span></p>
       <button className="btn btn-primary" disabled={!draft.trim()} onClick={() => {setReview(true); setTimeout(() => heading.current?.focus(), 0)}}>Rever resposta</button>
     </>}
     {error && <p role="alert" className="portal-alert portal-danger">{error} A tua resposta continua aqui. Confirma a ligação ao Wi-Fi da EduBox e tenta novamente.</p>}
     <small>O rascunho fica apenas neste separador. Não fica guardado na tua conta. Usa «Sair» para o apagar. Não uses um computador partilhado sem terminar a sessão.</small>
   </div>
 }
+
